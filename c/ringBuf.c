@@ -20,7 +20,7 @@ typedef struct SpscRing_ {
     size_t mask_;
     char pad3[64 - sizeof(size_t) * 3];
     char buffer_[] __attribute__((__aligned__(64)));
-} SpscRing __attribute__((__aligned__(64)));
+} __attribute__((__aligned__(64))) SpscRing;
 
 SpscRingProperty Get_shm_ringBuf(const size_t objNum, const size_t objSize, const char *shmPath)
 {
@@ -72,8 +72,12 @@ SpscRingProperty Get_shm_ringBuf(const size_t objNum, const size_t objSize, cons
 void Del_shm_ringBuf(SpscRingProperty property)
 {
     SpscRing *r = (SpscRing *) property.bufAddr;
-    munmap(r, r->objNum_ * r->objSize_ + sizeof(SpscRing));
-    close(property.fd);
+    if (r) {
+        munmap(r, r->objNum_ * r->objSize_ + sizeof(SpscRing));
+    }
+    if (property.fd >= 0) {
+        close(property.fd);
+    }
 }
 
 void *begin_push(SpscRing *r)
@@ -93,7 +97,7 @@ void end_push(SpscRing *r)
     atomic_store_explicit(&r->head_, head + 1, memory_order_release);
 }
 
-void *pop_begin(SpscRing *r)
+void *begin_pop(SpscRing *r)
 {
     const size_t tail = atomic_load_explicit(&r->tail_, memory_order_relaxed);
     const size_t head = atomic_load_explicit(&r->head_, memory_order_acquire);
@@ -103,7 +107,7 @@ void *pop_begin(SpscRing *r)
     return &r->buffer_[(tail & r->mask_) * r->objSize_];
 }
 
-void pop_end(SpscRing *r)
+void end_pop(SpscRing *r)
 {
     const size_t tail = atomic_load_explicit(&r->tail_, memory_order_relaxed);
     atomic_store_explicit(&r->tail_, tail + 1, memory_order_release);
