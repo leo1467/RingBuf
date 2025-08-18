@@ -6,7 +6,7 @@
 namespace RingBufWrapper {
 
 template<class T, size_t ObjNum>
-class RingBuf {
+class SpscRingBuf {
 public:
     SpscRing *Get_RingBuf() const
     {
@@ -45,22 +45,22 @@ public:
         end_pop(r);
     }
 
-    explicit RingBuf(const char *shmPath) noexcept : property{-1, nullptr}, r(nullptr)
+    explicit SpscRingBuf(const char *shmPath) noexcept : property{-1, nullptr}, r(nullptr)
     {
         property = Get_shm_ringBuf(ObjNum, sizeof(T), shmPath);
         r = reinterpret_cast<SpscRing *>(property.bufAddr);
     }
 
-    ~RingBuf()
+    ~SpscRingBuf()
     {
         Del_shm_ringBuf(property);
     }
 
-    RingBuf(const RingBuf &other) = delete;
+    SpscRingBuf(const SpscRingBuf &other) = delete;
 
-    RingBuf &operator=(const RingBuf &other) = delete;
+    SpscRingBuf &operator=(const SpscRingBuf &other) = delete;
 
-    RingBuf(RingBuf &&other) noexcept
+    SpscRingBuf(SpscRingBuf &&other) noexcept
     {
         property = other.property;
         r = other.r;
@@ -68,7 +68,7 @@ public:
         other.property.fd = -1;
         other.r = nullptr;
     }
-    RingBuf &operator=(RingBuf &&other) noexcept
+    SpscRingBuf &operator=(SpscRingBuf &&other) noexcept
     {
         if (this == &other) {
             return *this;
