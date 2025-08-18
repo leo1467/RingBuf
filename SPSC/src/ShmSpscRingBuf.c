@@ -22,14 +22,14 @@ typedef struct ShmSpscRingBuf_ {
     char buffer_[] __attribute__((__aligned__(64)));
 } __attribute__((__aligned__(64))) ShmSpscRingBuf_t;
 
-SpscRingProperty Get_shm_ringBuf(const size_t objNum, const size_t objSize, const char *shmPath)
+SpscRingProperty_t Get_shm_ringBuf(const size_t objNum, const size_t objSize, const char *shmPath)
 {
     /* 物件數量只能是2的冪次才能index到正確的位置 */
     assert((objNum >= 2) && ((objNum & (objNum - 1)) == 0));
 
     const size_t TOTAL_SIZE = objNum * objSize + sizeof(ShmSpscRingBuf_t);
 
-    SpscRingProperty property = {.fd = -1, .bufAddr = NULL};
+    SpscRingProperty_t property = {.fd = -1, .bufAddr = NULL};
     int rc = 0;
     int fd = -1;
     if (shmPath) {
@@ -69,7 +69,7 @@ SpscRingProperty Get_shm_ringBuf(const size_t objNum, const size_t objSize, cons
     return property;
 }
 
-void Del_shm_ringBuf(SpscRingProperty property)
+void Del_shm_ringBuf(SpscRingProperty_t property)
 {
     ShmSpscRingBuf_t *r = (ShmSpscRingBuf_t *) property.bufAddr;
     if (r) {

@@ -7,14 +7,14 @@ typedef struct ShmSpscRingBuf_ ShmSpscRingBuf_t;
 typedef struct SpscRingProperty_ {
     int fd;
     void *bufAddr;
-} SpscRingProperty;
+} SpscRingProperty_t;
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-SpscRingProperty Get_shm_ringBuf(const size_t objNum, const size_t objSize, const char *shm_path);
-void Del_shm_ringBuf(SpscRingProperty property);
+SpscRingProperty_t Get_shm_ringBuf(const size_t objNum, const size_t objSize, const char *shm_path);
+void Del_shm_ringBuf(SpscRingProperty_t property);
 
 void *begin_push(ShmSpscRingBuf_t *r);
 void end_push(ShmSpscRingBuf_t *r);

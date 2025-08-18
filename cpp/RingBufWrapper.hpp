@@ -81,7 +81,7 @@ public:
         return *this;
     }
 private:
-    SpscRingProperty property;
+    SpscRingProperty_t property;
     ShmSpscRingBuf_t *r;
 };
 } // ShmRingBufWrapper
