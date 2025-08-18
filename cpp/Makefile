@@ -26,10 +26,10 @@ INCLUDEDIRFILES=$(addprefix $(HEADERDIR), $(HEADERS))
 
 OBJS=$(patsubst %, $(TMPDIR)%, $(patsubst %.c, %.o, $(patsubst %.cc, %.o, $(SRCFILES))))
 
-TARGET_STATIC=libShmRingBufcpp.a
-TARGET_DYNAMIC=libShmRingBufcpp.so.1.0.0
-LINK1=libShmRingBufcpp.so.1
-LINK2=libShmRingBufcpp.so
+TARGET_STATIC=libShmRingBufWrapper.a
+TARGET_DYNAMIC=libShmRingBufWrapper.so.1.0.0
+LINK1=libShmRingBufWrapper.so.1
+LINK2=libShmRingBufWrapper.so
 
 TARGET?=$(TARGET_STATIC)
 
