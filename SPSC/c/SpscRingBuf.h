@@ -2,7 +2,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-typedef struct SpscRing_ SpscRing;
+typedef struct SpscRingBuf_ SpscRingBuf_t;
 
 typedef struct SpscRingProperty_ {
     int fd;
@@ -16,14 +16,14 @@ extern "C" {
 SpscRingProperty Get_shm_ringBuf(const size_t objNum, const size_t objSize, const char *shm_path);
 void Del_shm_ringBuf(SpscRingProperty property);
 
-void *begin_push(SpscRing *r);
-void end_push(SpscRing *r);
-void *begin_pop(SpscRing *r);
-void end_pop(SpscRing *r);
-bool empty(SpscRing *r);
-bool full(SpscRing *r);
-size_t capacity(SpscRing *r);
-size_t size(SpscRing *r);
+void *begin_push(SpscRingBuf_t *r);
+void end_push(SpscRingBuf_t *r);
+void *begin_pop(SpscRingBuf_t *r);
+void end_pop(SpscRingBuf_t *r);
+bool empty(SpscRingBuf_t *r);
+bool full(SpscRingBuf_t *r);
+size_t capacity(SpscRingBuf_t *r);
+size_t size(SpscRingBuf_t *r);
 
 #ifdef __cplusplus
 }

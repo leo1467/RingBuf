@@ -1,5 +1,5 @@
 #pragma once
-#include "ringBuf.h"
+#include "SpscRingBuf.h"
 
 #include <string>
 
@@ -8,7 +8,7 @@ namespace RingBufWrapper {
 template<class T, size_t ObjNum>
 class SpscRingBuf {
 public:
-    SpscRing *Get_RingBuf() const
+    SpscRingBuf_t *Get_RingBuf() const
     {
         return r;
     }
@@ -48,7 +48,7 @@ public:
     explicit SpscRingBuf(const char *shmPath) noexcept : property{-1, nullptr}, r(nullptr)
     {
         property = Get_shm_ringBuf(ObjNum, sizeof(T), shmPath);
-        r = reinterpret_cast<SpscRing *>(property.bufAddr);
+        r = reinterpret_cast<SpscRingBuf_t *>(property.bufAddr);
     }
 
     ~SpscRingBuf()
@@ -82,6 +82,6 @@ public:
     }
 private:
     SpscRingProperty property;
-    SpscRing *r;
+    SpscRingBuf_t *r;
 };
 } // RingBufWrapper
