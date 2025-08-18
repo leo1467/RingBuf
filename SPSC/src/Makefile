@@ -109,6 +109,8 @@ install: all LINK1 LINK2
 		echo "cp -p $(TMPDIR)$(TARGET) $(BINDIR)"; \
 		cp -p $(TMPDIR)$(TARGET) $(BINDIR); \
 	fi
+	@cp -r ../bin ../..
+	@cp -r ../include ../..
 
 
 LINK1:
