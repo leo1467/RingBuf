@@ -3,7 +3,7 @@
 
 #include <string>
 
-namespace RingBufWrapper {
+namespace ShmRingBufWrapper {
 
 template<class T, size_t ObjNum>
 class SpscRingBuf {
@@ -84,4 +84,4 @@ private:
     SpscRingProperty property;
     SpscRingBuf_t *r;
 };
-} // RingBufWrapper
+} // ShmRingBufWrapper
