@@ -13,17 +13,17 @@ typedef struct SpscRingProperty_ {
 extern "C" {
 #endif
 
-SpscRingProperty_t Get_shm_ringBuf(const size_t objNum, const size_t objSize, const char *shm_path);
-void Del_shm_ringBuf(SpscRingProperty_t property);
+SpscRingProperty_t Get_shmSpscRingBuf(const size_t objNum, const size_t objSize, const char *shmPath);
+void Del_shmSpscRingBuf(SpscRingProperty_t property);
 
-void *begin_push(ShmSpscRingBuf_t *r);
-void end_push(ShmSpscRingBuf_t *r);
-void *begin_pop(ShmSpscRingBuf_t *r);
-void end_pop(ShmSpscRingBuf_t *r);
-bool empty(ShmSpscRingBuf_t *r);
-bool full(ShmSpscRingBuf_t *r);
-size_t capacity(ShmSpscRingBuf_t *r);
-size_t size(ShmSpscRingBuf_t *r);
+void *Begin_push_shmSpscRingBuf(ShmSpscRingBuf_t *r);
+void End_push_shmSpscRingBuf(ShmSpscRingBuf_t *r);
+void *Begin_pop_shmSpscRingBuf(ShmSpscRingBuf_t *r);
+void End_pop_shmSpscRingBuf(ShmSpscRingBuf_t *r);
+bool Is_empty_shmSpscRingBuf(ShmSpscRingBuf_t *r);
+bool Is_full_shmSpscRingBuf(ShmSpscRingBuf_t *r);
+size_t Capacity_shmSpscRingBuf(ShmSpscRingBuf_t *r);
+size_t Size_shmSpscRingBuf(ShmSpscRingBuf_t *r);
 
 #ifdef __cplusplus
 }

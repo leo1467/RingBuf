@@ -18,7 +18,7 @@ public:
         if (unlikely(!r)) {
             return nullptr;
         }
-        return reinterpret_cast<T *>(begin_push(r));
+        return reinterpret_cast<T *>(Begin_push_shmSpscRingBuf(r));
     }
 
     void End_push() const
@@ -26,7 +26,7 @@ public:
         if (unlikely(!r)) {
             return;
         }
-        end_push(r);
+        End_push_shmSpscRingBuf(r);
     }
 
     T* Begin_pop() const
@@ -34,7 +34,7 @@ public:
         if (unlikely(!r)) {
             return nullptr;
         }
-        return reinterpret_cast<T *>(begin_pop(r));
+        return reinterpret_cast<T *>(Begin_pop_shmSpscRingBuf(r));
     }
 
     void End_pop() const
@@ -42,18 +42,18 @@ public:
         if (unlikely(!r)) {
             return;
         }
-        end_pop(r);
+        End_pop_shmSpscRingBuf(r);
     }
 
     explicit SpscRingBuf(const char *shmPath) noexcept : property{-1, nullptr}, r(nullptr)
     {
-        property = Get_shm_ringBuf(ObjNum, sizeof(T), shmPath);
+        property = Get_shmSpscRingBuf(ObjNum, sizeof(T), shmPath);
         r = reinterpret_cast<ShmSpscRingBuf_t *>(property.bufAddr);
     }
 
     ~SpscRingBuf()
     {
-        Del_shm_ringBuf(property);
+        Del_shmSpscRingBuf(property);
     }
 
     SpscRingBuf(const SpscRingBuf &other) = delete;

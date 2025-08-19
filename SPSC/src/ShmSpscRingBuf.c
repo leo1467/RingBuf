@@ -7,22 +7,24 @@
 
 #include "ShmSpscRingBuf.h"
 
-typedef struct ShmSpscRingBuf_ {
-    atomic_size_t head_ __attribute__((__aligned__(64)));
-    char pad1[64 - sizeof(atomic_size_t)];
+#define CACHE_LINE_SIZE 64
 
-    atomic_size_t tail_ __attribute__((__aligned__(64)));
-    char pad2[64 - sizeof(atomic_size_t)];
+struct ShmSpscRingBuf_ {
+    atomic_size_t head_ __attribute__((__aligned__(CACHE_LINE_SIZE)));
+    char pad1[CACHE_LINE_SIZE - sizeof(atomic_size_t)];
+
+    atomic_size_t tail_ __attribute__((__aligned__(CACHE_LINE_SIZE)));
+    char pad2[CACHE_LINE_SIZE - sizeof(atomic_size_t)];
 
     // ---- buffer data ----
     size_t objSize_;
     size_t objNum_;
     size_t mask_;
-    char pad3[64 - sizeof(size_t) * 3];
-    char buffer_[] __attribute__((__aligned__(64)));
-} __attribute__((__aligned__(64))) ShmSpscRingBuf_t;
+    char pad3[CACHE_LINE_SIZE - sizeof(size_t) * 3];
+    char buffer_[] __attribute__((__aligned__(CACHE_LINE_SIZE)));
+} __attribute__((__aligned__(CACHE_LINE_SIZE)));
 
-SpscRingProperty_t Get_shm_ringBuf(const size_t objNum, const size_t objSize, const char *shmPath)
+SpscRingProperty_t Get_shmSpscRingBuf(const size_t objNum, const size_t objSize, const char *shmPath)
 {
     /* 物件數量只能是2的冪次才能index到正確的位置 */
     assert((objNum >= 2) && ((objNum & (objNum - 1)) == 0));
@@ -69,7 +71,7 @@ SpscRingProperty_t Get_shm_ringBuf(const size_t objNum, const size_t objSize, co
     return property;
 }
 
-void Del_shm_ringBuf(SpscRingProperty_t property)
+void Del_shmSpscRingBuf(SpscRingProperty_t property)
 {
     ShmSpscRingBuf_t *r = (ShmSpscRingBuf_t *) property.bufAddr;
     if (r) {
@@ -80,60 +82,61 @@ void Del_shm_ringBuf(SpscRingProperty_t property)
     }
 }
 
-void *begin_push(ShmSpscRingBuf_t *r)
+void *Begin_push_shmSpscRingBuf(ShmSpscRingBuf_t *r)
 {
-    const size_t head = atomic_load_explicit(&r->head_, memory_order_relaxed);
-    const size_t next_head = head + 1;
-    const size_t tail = atomic_load_explicit(&r->tail_, memory_order_acquire);
-    if ((next_head - tail) > r->objNum_) {
+    const size_t curr_head = atomic_load_explicit(&r->head_, memory_order_relaxed);
+    const size_t next_head = curr_head + 1;
+    const size_t curr_tail = atomic_load_explicit(&r->tail_, memory_order_acquire);
+    if ((next_head - curr_tail) > r->objNum_) {
         return NULL;
     }
-    return &r->buffer_[(head & r->mask_) * r->objSize_];
+    return &r->buffer_[(curr_head & r->mask_) * r->objSize_];
 }
 
-void end_push(ShmSpscRingBuf_t *r)
+void End_push_shmSpscRingBuf(ShmSpscRingBuf_t *r)
 {
-    const size_t head = atomic_load_explicit(&r->head_, memory_order_relaxed);
-    atomic_store_explicit(&r->head_, head + 1, memory_order_release);
+    const size_t curr_head = atomic_load_explicit(&r->head_, memory_order_relaxed);
+    atomic_store_explicit(&r->head_, curr_head + 1, memory_order_release);
 }
 
-void *begin_pop(ShmSpscRingBuf_t *r)
+void *Begin_pop_shmSpscRingBuf(ShmSpscRingBuf_t *r)
 {
-    const size_t tail = atomic_load_explicit(&r->tail_, memory_order_relaxed);
-    const size_t head = atomic_load_explicit(&r->head_, memory_order_acquire);
-    if ((head - tail) == 0) {
+    const size_t curr_tail = atomic_load_explicit(&r->tail_, memory_order_relaxed);
+    const size_t curr_head = atomic_load_explicit(&r->head_, memory_order_acquire);
+    if ((curr_head - curr_tail) == 0) {
         return NULL;
     }
-    return &r->buffer_[(tail & r->mask_) * r->objSize_];
+    return &r->buffer_[(curr_tail & r->mask_) * r->objSize_];
 }
 
-void end_pop(ShmSpscRingBuf_t *r)
+void End_pop_shmSpscRingBuf(ShmSpscRingBuf_t *r)
 {
-    const size_t tail = atomic_load_explicit(&r->tail_, memory_order_relaxed);
-    atomic_store_explicit(&r->tail_, tail + 1, memory_order_release);
+    const size_t curr_tail = atomic_load_explicit(&r->tail_, memory_order_relaxed);
+    atomic_store_explicit(&r->tail_, curr_tail + 1, memory_order_release);
 }
 
-bool empty(ShmSpscRingBuf_t *r)
+bool Is_empty_shmSpscRingBuf(ShmSpscRingBuf_t *r)
 {
-    return (atomic_load_explicit(&r->head_, memory_order_acquire) ==
-            atomic_load_explicit(&r->tail_, memory_order_acquire));
+    size_t curr_head = atomic_load_explicit(&r->head_, memory_order_acquire);
+    size_t curr_tail = atomic_load_explicit(&r->tail_, memory_order_acquire);
+    return curr_head == curr_tail;
 }
 
-bool full(ShmSpscRingBuf_t *r)
+bool Is_full_shmSpscRingBuf(ShmSpscRingBuf_t *r)
 {
-    const size_t head = atomic_load_explicit(&r->head_, memory_order_acquire);
-    const size_t tail = atomic_load_explicit(&r->tail_, memory_order_acquire);
-    return ((head + 1 - tail) > r->objNum_);
+    const size_t curr_head = atomic_load_explicit(&r->head_, memory_order_acquire);
+    const size_t curr_tail = atomic_load_explicit(&r->tail_, memory_order_acquire);
+    return ((curr_head + 1 - curr_tail) > r->objNum_);
 }
 
-size_t capacity(ShmSpscRingBuf_t *r)
+size_t Capacity_shmSpscRingBuf(ShmSpscRingBuf_t *r)
 {
     return r->objNum_;
 }
 
-size_t size(ShmSpscRingBuf_t *r)
+size_t Size_shmSpscRingBuf(ShmSpscRingBuf_t *r)
 {
-    const size_t head = atomic_load_explicit(&r->head_, memory_order_acquire);
-    const size_t tail = atomic_load_explicit(&r->tail_, memory_order_acquire);
-    return head - tail;
+    const size_t curr_head = atomic_load_explicit(&r->head_, memory_order_acquire);
+    const size_t curr_tail = atomic_load_explicit(&r->tail_, memory_order_acquire);
+    return curr_head - curr_tail;
 }
