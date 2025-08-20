@@ -13,7 +13,7 @@ HEADERDIR=../include/
 
 LINK_TYPE=static
 
-ScanTarget=ShmRingBuf
+ScanTarget=RingBuf
 
 CC=gcc
 
@@ -26,10 +26,10 @@ INCLUDEDIRFILES=$(addprefix $(HEADERDIR), $(HEADERS))
 
 OBJS=$(patsubst %, $(TMPDIR)%, $(patsubst %.c, %.o, $(SRCFILES)))
 
-TARGET_STATIC=libShmMpscRingBuf.a
-TARGET_DYNAMIC=libShmMpscRingBuf.so.1.0.0
-LINK1=libShmMpscRingBuf.so.1
-LINK2=libShmMpscRingBuf.so
+TARGET_STATIC=libRingBuf.a
+TARGET_DYNAMIC=libRingBuf.so.1.0.0
+LINK1=libRingBuf.so.1
+LINK2=libRingBuf.so
 
 TARGET?=$(TARGET_STATIC)
 
