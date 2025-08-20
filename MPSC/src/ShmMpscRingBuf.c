@@ -85,19 +85,32 @@ void Del_shmMpscRingBuf(MpscRingProperty_t property)
     }
 }
 
-int64_t Push_shmMpscRingBuf(ShmMpscRingBuf_t *r, void *args)
+#if DEBUG
+size_t Push_shmMpscRingBuf(ShmMpscRingBuf_t *r, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o)
 {
     const size_t curr_head = atomic_fetch_add_explicit(&r->head_, 1, memory_order_relaxed);
-    const size_t curr_tail = atomic_load_explicit(&r->tail_, memory_order_acquire);
-    if ((curr_head - curr_tail) > r->objNum_) {
-        atomic_fetch_sub_explicit(&r->head_, 1, memory_order_relaxed);
-        return -1;
+    while ((curr_head - (atomic_load_explicit(&r->tail_, memory_order_acquire))) >= r->objNum_) { cpu_relax(); }
+    cb(arr, curr_head, buf, o);
+    memcpy(&r->buffer_[(curr_head & r->mask_) * r->objSize_], args, r->objSize_);
+    while (atomic_load_explicit(&r->commit_, memory_order_acquire) != curr_head) { cpu_relax(); }
+    atomic_store_explicit(&r->commit_, curr_head + 1, memory_order_release);
+    return curr_head;
+}
+#else
+size_t Push_shmMpscRingBuf(ShmMpscRingBuf_t *r, void *args)
+{
+    const size_t curr_head = atomic_fetch_add_explicit(&r->head_, 1, memory_order_relaxed);
+    while ((curr_head - (atomic_load_explicit(&r->tail_, memory_order_acquire))) >= r->objNum_) {
+        cpu_relax();
     }
     memcpy(&r->buffer_[(curr_head & r->mask_) * r->objSize_], args, r->objSize_);
-    while (atomic_load_explicit(&r->commit_, memory_order_relaxed) != curr_head) {}
+    while (atomic_load_explicit(&r->commit_, memory_order_acquire) != curr_head) {
+        cpu_relax();
+    }
     atomic_store_explicit(&r->commit_, curr_head + 1, memory_order_release);
-    return ((curr_head + 1) & r->mask_);
+    return curr_head;
 }
+#endif
 
 int64_t Pop_shmMpscRingBuf(ShmMpscRingBuf_t *r, void *buf)
 {
@@ -108,7 +121,7 @@ int64_t Pop_shmMpscRingBuf(ShmMpscRingBuf_t *r, void *buf)
     }
     memcpy(buf, &r->buffer_[(curr_tail & r->mask_) * r->objSize_], r->objSize_);
     atomic_store_explicit(&r->tail_, curr_tail + 1, memory_order_release);
-    return (curr_tail & r->mask_);
+    return curr_tail;
 }
 
 bool Is_empty_shmMpscRingBuf(ShmMpscRingBuf_t *r)
@@ -133,7 +146,7 @@ size_t Capacity_shmMpscRingBuf(ShmMpscRingBuf_t *r)
 
 size_t Size_shmMpscRingBuf(ShmMpscRingBuf_t *r)
 {
-    size_t curr_commit = atomic_load_explicit(&r->commit_, memory_order_acquire);
+    size_t curr_head = atomic_load_explicit(&r->head_, memory_order_acquire);
     size_t curr_tail = atomic_load_explicit(&r->tail_, memory_order_acquire);
-    return curr_commit - curr_tail;
+    return curr_head - curr_tail;
 }
