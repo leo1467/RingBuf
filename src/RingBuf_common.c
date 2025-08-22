@@ -39,10 +39,12 @@ RingBuf_t *get_buf(const size_t objNum, const size_t objSize, const char *shmPat
             return NULL;
         }
 
-        rc = ftruncate(fd, TOTAL_SIZE);
-        if (rc < 0) {
-            perror("ftruncate");
-            return NULL;
+        if (prot & MAP_NEW) {
+            rc = ftruncate(fd, TOTAL_SIZE);
+            if (rc < 0) {
+                perror("ftruncate");
+                return NULL;
+            }
         }
 
         p = mmap(NULL, TOTAL_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
@@ -54,13 +56,15 @@ RingBuf_t *get_buf(const size_t objNum, const size_t objSize, const char *shmPat
     }
 
     RingBuf_t *r = (RingBuf_t *) p;
-    r->objNum_ = objNum;
-    r->mask_ = objNum - 1;
-    r->objSize_ = objSize;
-    r->fd = fd;
-    atomic_init(&r->head_, 0);
-    atomic_init(&r->tail_, 0);
-    atomic_init(&r->commit_, 0);
+    if (prot & MAP_NEW) {
+        r->objNum_ = objNum;
+        r->mask_ = objNum - 1;
+        r->objSize_ = objSize;
+        r->fd = fd;
+        atomic_init(&r->head_, 0);
+        atomic_init(&r->tail_, 0);
+        atomic_init(&r->commit_, 0);
+    }
 
     return r;
 }
@@ -72,7 +76,7 @@ void del_buf(RingBuf_t *r)
     }
     if (r->fd >= 0 && r) {
         munmap(r, r->objNum_ * r->objSize_ + sizeof(RingBuf_t));
-    } else if (r->fd == -2) {
+    } else if (r->fd == -999) {
         free(r);
     }
 }

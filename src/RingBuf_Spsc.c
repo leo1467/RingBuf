@@ -58,32 +58,22 @@ void End_pop_SpscRingBuf(SpscRingBuf_t *p)
 
 #if DEBUG
 size_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o)
-{
-    RingBuf_t *r = (RingBuf_t *) p;
-    const size_t curr_head = atomic_load_explicit(&r->head_, memory_order_relaxed);
-    while ((curr_head - (atomic_load_explicit(&r->tail_, memory_order_acquire))) >= r->objNum_) {
-        cpu_relax();
-    }
-    cb(arr, curr_head, buf, o);
-    memcpy(&r->buffer_[(curr_head & r->mask_) * r->objSize_], args, r->objSize_);
-    atomic_store_explicit(&r->head_, curr_head + 1, memory_order_release);
-    return curr_head;
-}
 #else
 size_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args)
+#endif
 {
     RingBuf_t *r = (RingBuf_t *) p;
     const size_t curr_head = atomic_load_explicit(&r->head_, memory_order_relaxed);
-    const size_t next_head = curr_head + 1;
-    const size_t curr_tail = atomic_load_explicit(&r->tail_, memory_order_acquire);
     while ((curr_head - (atomic_load_explicit(&r->tail_, memory_order_acquire))) >= r->objNum_) {
         cpu_relax();
     }
+#if DEBUG
+    cb(arr, curr_head, buf, o);
+#endif
     memcpy(&r->buffer_[(curr_head & r->mask_) * r->objSize_], args, r->objSize_);
     atomic_store_explicit(&r->head_, curr_head + 1, memory_order_release);
     return curr_head;
 }
-#endif
 
 size_t Pop_SpscRingBuf(SpscRingBuf_t *p, void *buf)
 {
@@ -101,16 +91,16 @@ size_t Pop_SpscRingBuf(SpscRingBuf_t *p, void *buf)
 bool Is_empty_SpscRingBuf(SpscRingBuf_t *p)
 {
     RingBuf_t *r = (RingBuf_t *) p;
-    size_t curr_head = atomic_load_explicit(&r->head_, memory_order_acquire);
-    size_t curr_tail = atomic_load_explicit(&r->tail_, memory_order_acquire);
+    size_t curr_head = atomic_load_explicit(&r->head_, memory_order_relaxed);
+    size_t curr_tail = atomic_load_explicit(&r->tail_, memory_order_relaxed);
     return curr_head == curr_tail;
 }
 
 bool Is_full_SpscRingBuf(SpscRingBuf_t *p)
 {
     RingBuf_t *r = (RingBuf_t *) p;
-    const size_t curr_head = atomic_load_explicit(&r->head_, memory_order_acquire);
-    const size_t curr_tail = atomic_load_explicit(&r->tail_, memory_order_acquire);
+    const size_t curr_head = atomic_load_explicit(&r->head_, memory_order_relaxed);
+    const size_t curr_tail = atomic_load_explicit(&r->tail_, memory_order_relaxed);
     return ((curr_head + 1 - curr_tail) > r->objNum_);
 }
 
@@ -123,7 +113,7 @@ size_t Capacity_SpscRingBuf(SpscRingBuf_t *p)
 size_t Size_SpscRingBuf(SpscRingBuf_t *p)
 {
     RingBuf_t *r = (RingBuf_t *) p;
-    const size_t curr_head = atomic_load_explicit(&r->head_, memory_order_acquire);
-    const size_t curr_tail = atomic_load_explicit(&r->tail_, memory_order_acquire);
+    const size_t curr_head = atomic_load_explicit(&r->head_, memory_order_relaxed);
+    const size_t curr_tail = atomic_load_explicit(&r->tail_, memory_order_relaxed);
     return curr_head - curr_tail;
 }

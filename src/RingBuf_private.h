@@ -5,8 +5,9 @@
 
 typedef struct _RingBuf {
     atomic_size_t head_ __attribute__((__aligned__(CACHE_LINE_SIZE)));
+    char pad0[CACHE_LINE_SIZE - sizeof(atomic_size_t)];
     atomic_size_t commit_ __attribute__((__aligned__(CACHE_LINE_SIZE)));
-    char pad1[CACHE_LINE_SIZE - sizeof(atomic_size_t) * 2];
+    char pad1[CACHE_LINE_SIZE - sizeof(atomic_size_t)];
 
     atomic_size_t tail_ __attribute__((__aligned__(CACHE_LINE_SIZE)));
     char pad2[CACHE_LINE_SIZE - sizeof(atomic_size_t)];
