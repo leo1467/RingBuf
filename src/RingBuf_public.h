@@ -29,9 +29,9 @@ typedef void (*testFunc)(Time_diff_t *arr, size_t pushed, char buf[], Obj *o);
 typedef struct _MpscRingBuf MpscRingBuf_t;
 typedef struct _SpscRingBuf SpscRingBuf_t;
 enum RingBufType {
-    MAP_MALLOC  = 1 << 0,
-    MAP_NEW     = 1 << 1, 
-    MAP_EXIST   = 1 << 2,
+    MAP_MALLOC  = 1 << 20,
+    MAP_NEW     = 1 << 21, 
+    MAP_EXIST   = 1 << 22,
 };
 
 #ifdef __cplusplus
