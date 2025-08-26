@@ -28,10 +28,11 @@ typedef void (*testFunc)(Time_diff_t *arr, size_t pushed, char buf[], Obj *o);
 
 typedef struct _MpscRingBuf MpscRingBuf_t;
 typedef struct _SpscRingBuf SpscRingBuf_t;
-enum RingBufType {
-    MAP_MALLOC  = 1 << 20,
-    MAP_NEW     = 1 << 21, 
-    MAP_EXIST   = 1 << 22,
+
+enum RingBufMappingType {
+    MAP_MALLOC  = 1 << 24,
+    MAP_NEW     = 1 << 25, 
+    MAP_EXIST   = 1 << 26,
 };
 
 #ifdef __cplusplus
@@ -67,12 +68,15 @@ void Del_MpscRingBuf(MpscRingBuf_t *p);
 #if DEBUG
 size_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o);
 size_t Try_Push_MpscRingBuf(MpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o);
+size_t Try_Push_slot_MpscRingBuf(MpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o);
 #else
 size_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args);
 size_t Try_Push_MpscRingBuf(MpscRingBuf_t *p, void *args);
+size_t Try_Push_slot_MpscRingBuf(MpscRingBuf_t *p, void *args);
 #endif
 
 size_t Pop_MpscRingBuf(MpscRingBuf_t *p, void *buf);
+size_t Try_Pop_slot_MpscRingBuf(MpscRingBuf_t *p, void *buf);
 bool Is_empty_MpscRingBuf(MpscRingBuf_t *p);
 bool Is_full_MpscRingBuf(MpscRingBuf_t *p);
 size_t Capacity_MpscRingBuf(MpscRingBuf_t *p);

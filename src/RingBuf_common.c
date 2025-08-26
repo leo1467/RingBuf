@@ -9,18 +9,57 @@
 #include "RingBuf_public.h"
 #include "RingBuf_private.h"
 
-RingBuf_t *get_buf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag)
+typedef struct _SizeInfo {
+    size_t buf_off_s;
+    size_t buf_off_e;
+    size_t slot_off_s;
+    size_t slot_off_e;
+    size_t total_size;
+} SizeInfo_t;
+
+__attribute__((always_inline)) inline
+static size_t get_aligned_offset(size_t base_offset, size_t alignment)
+{
+    return (base_offset + alignment - 1) & ~(alignment - 1);
+}
+
+__attribute__((always_inline)) inline
+static SizeInfo_t get_total_size(const size_t objNum, const size_t objSize, int useSlot)
+{
+    size_t total_size = 0;
+    size_t buffer_offset_start = 0;
+    size_t buffer_offset_end = 0;
+    size_t slot_offset_start = 0;
+    size_t slot_offset_end = 0;
+    buffer_offset_start = get_aligned_offset(sizeof(RingBuf_t), CACHE_LINE_SIZE);
+    buffer_offset_end = get_aligned_offset(buffer_offset_start + objSize * objNum, CACHE_LINE_SIZE);
+    if (useSlot & USE_SLOT) {
+        slot_offset_start = get_aligned_offset(buffer_offset_end, CACHE_LINE_SIZE);
+        slot_offset_end = get_aligned_offset(slot_offset_start + sizeof(atomic_size_t) * objNum, CACHE_LINE_SIZE);
+        total_size = slot_offset_end;
+    } else if (useSlot & NO_SLOT) {
+        total_size = buffer_offset_end;;
+    }
+
+    return (SizeInfo_t){.buf_off_s  = buffer_offset_start, 
+                        .buf_off_e  = buffer_offset_end,
+                        .slot_off_s = slot_offset_start,
+                        .slot_off_e = slot_offset_end,
+                        .total_size = total_size};
+}
+
+RingBuf_t *get_buf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag, int useSlot)
 {
     /* 物件數量只能是2的冪次才能index到正確的位置 */
     assert((objNum >= 2) && ((objNum & (objNum - 1)) == 0));
 
-    const size_t TOTAL_SIZE = objNum * objSize + sizeof(RingBuf_t);
+    SizeInfo_t info = get_total_size(objNum, objSize, useSlot);
 
     int rc = 0;
     int fd = -1;
     void *p = NULL;
     if (prot & MAP_MALLOC) {
-        p = malloc(TOTAL_SIZE);
+        p = malloc(info.total_size);
         if (!p) {
             perror("malloc");
             return NULL;
@@ -40,14 +79,14 @@ RingBuf_t *get_buf(const size_t objNum, const size_t objSize, const char *shmPat
         }
 
         if (prot & MAP_NEW) {
-            rc = ftruncate(fd, TOTAL_SIZE);
+            rc = ftruncate(fd, info.total_size);
             if (rc < 0) {
                 perror("ftruncate");
                 return NULL;
             }
         }
 
-        p = mmap(NULL, TOTAL_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+        p = mmap(NULL, info.total_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
         if (p == MAP_FAILED) {
             perror("mmap");
             close(fd);
@@ -55,8 +94,15 @@ RingBuf_t *get_buf(const size_t objNum, const size_t objSize, const char *shmPat
         }
     }
 
-    RingBuf_t *r = (RingBuf_t *) p;
+    RingBuf_t *r = p;
     if (prot & MAP_NEW) {
+        r->buffer_ = (char *)p + info.buf_off_s;
+        if (useSlot & USE_SLOT) {
+            r->slot_ = (atomic_size_t *)((char *)p + info.slot_off_s);
+        } else if (useSlot & NO_SLOT) {
+            r->slot_ = NULL;
+        }
+
         r->objNum_ = objNum;
         r->mask_ = objNum - 1;
         r->objSize_ = objSize;

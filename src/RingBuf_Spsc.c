@@ -11,7 +11,7 @@
 
 SpscRingBuf_t *Get_SpscRingBuf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag)
 {
-    return (SpscRingBuf_t* ) get_buf(objNum, objSize, shmPath, prot, flag);
+    return (SpscRingBuf_t* ) get_buf(objNum, objSize, shmPath, prot, flag, NO_SLOT);
 }
 
 void Del_SpscRingBuf(SpscRingBuf_t *p)
