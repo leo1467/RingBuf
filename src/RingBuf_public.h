@@ -28,10 +28,12 @@ typedef void (*testFunc)(Time_diff_t *arr, size_t pushed, char buf[], Obj *o);
 
 typedef struct _MpscRingBuf MpscRingBuf_t;
 typedef struct _SpscRingBuf SpscRingBuf_t;
+typedef struct _SlotRingBuf SlotRingBuf_t;
+typedef struct _BlockedRingBuf BlockedRingBuf_t;
 
 enum RingBufMappingType {
     MAP_MALLOC  = 1 << 24,
-    MAP_NEW     = 1 << 25, 
+    MAP_NEW     = 1 << 25,
     MAP_EXIST   = 1 << 26,
 };
 
@@ -59,28 +61,35 @@ bool Is_full_SpscRingBuf(SpscRingBuf_t *p);
 size_t Capacity_SpscRingBuf(SpscRingBuf_t *p);
 size_t Size_SpscRingBuf(SpscRingBuf_t *p);
 
-
-
-/* MPSC */
+/* commit */
 MpscRingBuf_t *Get_MpscRingBuf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag);
 void Del_MpscRingBuf(MpscRingBuf_t *p);
 
 #if DEBUG
 size_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o);
 size_t Try_Push_MpscRingBuf(MpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o);
-size_t Try_Push_slot_MpscRingBuf(MpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o);
 #else
 size_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args);
 size_t Try_Push_MpscRingBuf(MpscRingBuf_t *p, void *args);
-size_t Try_Push_slot_MpscRingBuf(MpscRingBuf_t *p, void *args);
 #endif
 
 size_t Pop_MpscRingBuf(MpscRingBuf_t *p, void *buf);
-size_t Try_Pop_slot_MpscRingBuf(MpscRingBuf_t *p, void *buf);
 bool Is_empty_MpscRingBuf(MpscRingBuf_t *p);
 bool Is_full_MpscRingBuf(MpscRingBuf_t *p);
 size_t Capacity_MpscRingBuf(MpscRingBuf_t *p);
 size_t Size_MpscRingBuf(MpscRingBuf_t *p);
+
+/* slot */
+SlotRingBuf_t *Get_SlotRingBuf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag);
+void Del_SlotRingBuf(SlotRingBuf_t *p);
+#if DEBUG
+size_t Try_Push_SlotRingBuf(SlotRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o);
+#else
+size_t Try_Push_SlotRingBuf(SlotRingBuf_t *p, void *args);
+#endif
+
+size_t Try_Pop_SlotMpscRingBuf(SlotRingBuf_t *p, void *buf);
+size_t Try_Pop_SlotRingBuf(SlotRingBuf_t *p, void *buf);
 
 #ifdef __cplusplus
 }
