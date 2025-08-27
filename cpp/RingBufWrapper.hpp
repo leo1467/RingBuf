@@ -129,6 +129,7 @@ public:
 
     explicit RingBuf(const char *shmPath, int prot, int flag) : r(nullptr)
     {
+        static_assert((ObjNum >= 2) && ((ObjNum & (ObjNum - 1)) == 0), "ObjNum need to be power of 2");
         r = Base::GetRing(ObjNum, sizeof(Obj), shmPath, prot, flag);
     }
 
