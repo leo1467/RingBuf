@@ -15,11 +15,12 @@ struct RingBufType {
 };
 
 template<class RingTypeTag> 
-struct RingBufTypeTrait {
+class RingBufTypeTrait {
 };
 
 template<> 
-struct RingBufTypeTrait<RingBufType::Spsc> {
+class RingBufTypeTrait<RingBufType::Spsc> {
+protected:
     using type = SpscRingBuf_t;
     inline static std::function<SpscRingBuf_t *(const size_t, const size_t, const char *, int, int)> GetRing 
         = std::bind(Get_SpscRingBuf, _1, _2, _3, _4, _5);
@@ -32,7 +33,8 @@ struct RingBufTypeTrait<RingBufType::Spsc> {
 };
 
 template<> 
-struct RingBufTypeTrait<RingBufType::Commit> {
+class RingBufTypeTrait<RingBufType::Commit> {
+protected:
     using type = MpscRingBuf_t;
     inline static std::function<MpscRingBuf_t *(const size_t, const size_t, const char *, int, int)> GetRing 
         = std::bind(&Get_MpscRingBuf, _1, _2, _3, _4, _5);
@@ -47,7 +49,8 @@ struct RingBufTypeTrait<RingBufType::Commit> {
 };
 
 template<> 
-struct RingBufTypeTrait<RingBufType::Slot> {
+class RingBufTypeTrait<RingBufType::Slot> {
+protected:
     using type = SlotRingBuf_t;
     inline static std::function<SlotRingBuf_t *(const size_t, const size_t, const char *, int, int)> GetRing 
         = std::bind(&Get_SlotRingBuf, _1, _2, _3, _4, _5);
@@ -60,36 +63,38 @@ struct RingBufTypeTrait<RingBufType::Slot> {
 };
 
 template<>
-struct RingBufTypeTrait<RingBufType::Blocked> {
+class RingBufTypeTrait<RingBufType::Blocked> {
+protected:
     using type = BlockedRingBuf_t;
 };
+
 template<class RingType, class Obj, size_t ObjNum>
-class RingBuf {
-    using RT = RingBufTypeTrait<RingType>;
+class RingBuf final : private RingBufTypeTrait<RingType> {
+    using Base = RingBufTypeTrait<RingType>;
 public:
-    typename RT::type *Get_RingBuf() const noexcept
+    typename Base::type *Get_RingBuf() const noexcept
     {
         return r;
     }
 
     size_t Push(Obj &obj) const noexcept
     {
-        return RT::Push(r, reinterpret_cast<void *>(&obj));
+        return Base::Push(r, reinterpret_cast<void *>(&obj));
     }
 
     size_t Push(Obj &&obj) const noexcept
     {
-        return RT::Push(r, reinterpret_cast<void *>(&obj));
+        return Base::Push(r, reinterpret_cast<void *>(&obj));
     }
 
     size_t Pop(Obj &obj) const noexcept
     {
-        return RT::Pop(r, reinterpret_cast<void *>(&obj));
+        return Base::Pop(r, reinterpret_cast<void *>(&obj));
     }
 
     size_t Pop(Obj &&obj) const noexcept
     {
-        return RT::Pop(r, reinterpret_cast<void *>(&obj));
+        return Base::Pop(r, reinterpret_cast<void *>(&obj));
     }
 
     template<class R = RingType>
@@ -124,12 +129,12 @@ public:
 
     explicit RingBuf(const char *shmPath, int prot, int flag) : r(nullptr)
     {
-        r = RT::GetRing(ObjNum, sizeof(Obj), shmPath, prot, flag);
+        r = Base::GetRing(ObjNum, sizeof(Obj), shmPath, prot, flag);
     }
 
     ~RingBuf() noexcept
     {
-        RT::DelRing(r);
+        Base::DelRing(r);
     }
 
     RingBuf(const RingBuf &other) = delete;
@@ -152,6 +157,6 @@ public:
         return *this;
     }
 private:
-    typename RT::type *r;
+    typename Base::type *r;
 };
 } // RingBufWrapper
