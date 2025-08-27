@@ -117,9 +117,14 @@ RingBuf_t *get_buf(const size_t objNum, const size_t objSize, const char *shmPat
 
 void del_buf(RingBuf_t *r)
 {
+    if (!r) {
+        return;
+    }
+
     if (r->fd >= 0) {
         close(r->fd);
     }
+
     if (r->fd >= 0 && r) {
         munmap(r, r->objNum_ * r->objSize_ + sizeof(RingBuf_t));
     } else if (r->fd == -999) {

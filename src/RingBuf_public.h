@@ -88,8 +88,8 @@ size_t Try_Push_SlotRingBuf(SlotRingBuf_t *p, void *args, testFunc cb, Time_diff
 size_t Try_Push_SlotRingBuf(SlotRingBuf_t *p, void *args);
 #endif
 
-size_t Try_Pop_SlotMpscRingBuf(SlotRingBuf_t *p, void *buf);
 size_t Try_Pop_SlotRingBuf(SlotRingBuf_t *p, void *buf);
+size_t Try_Pop_SlotMpscRingBuf(SlotRingBuf_t *p, void *buf);
 
 #ifdef __cplusplus
 }

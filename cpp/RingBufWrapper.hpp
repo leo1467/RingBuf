@@ -1,87 +1,159 @@
 #pragma once
-#include "ShmSpscRingBuf.h"
-
+#include <functional>
 #include <string>
 
-namespace ShmRingBufWrapper {
+#include "RingBuf_public.h"
 
-template<class T, size_t ObjNum>
-class SpscRingBuf {
+using namespace std::placeholders;
+
+namespace RingBufWrapper {
+
+enum class RingBufType {
+    Spsc,
+    Commit,
+    Slot,
+    Blocked,
+};
+
+template<RingBufType> 
+struct RingBufTypeTrait {
+};
+
+template<> 
+struct RingBufTypeTrait<RingBufType::Spsc> {
+    using type = SpscRingBuf_t;
+    inline static std::function<SpscRingBuf_t *(const size_t, const size_t, const char *, int, int)> GetRing 
+        = std::bind(Get_SpscRingBuf, _1, _2, _3, _4, _5);
+    inline static std::function<void(SpscRingBuf_t*)> DelRing
+        = std::bind(Del_SpscRingBuf, _1);
+    inline static std::function<size_t(SpscRingBuf_t*, void *)> Push
+        = std::bind(Push_SpscRingBuf, _1, _2);
+    inline static std::function<size_t(SpscRingBuf_t*, void *)> Pop
+        = std::bind(Pop_SpscRingBuf, _1, _2);
+};
+
+template<> 
+struct RingBufTypeTrait<RingBufType::Commit> {
+    using type = MpscRingBuf_t;
+    inline static std::function<MpscRingBuf_t *(const size_t, const size_t, const char *, int, int)> GetRing 
+        = std::bind(&Get_MpscRingBuf, _1, _2, _3, _4, _5);
+    inline static std::function<void(MpscRingBuf_t*)> DelRing
+        = std::bind(Del_MpscRingBuf, _1);
+    inline static std::function<size_t(MpscRingBuf_t*, void *)> Push
+        = std::bind(Push_MpscRingBuf, _1, _2);
+    inline static std::function<size_t(MpscRingBuf_t*, void *)> Pop
+        = std::bind(Pop_MpscRingBuf, _1, _2);
+    inline static std::function<size_t(MpscRingBuf_t*, void *)> Try_Push
+        = std::bind(Try_Push_MpscRingBuf, _1, _2);
+};
+
+template<> 
+struct RingBufTypeTrait<RingBufType::Slot> {
+    using type = SlotRingBuf_t;
+    inline static std::function<SlotRingBuf_t *(const size_t, const size_t, const char *, int, int)> GetRing 
+        = std::bind(&Get_SlotRingBuf, _1, _2, _3, _4, _5);
+    inline static std::function<void(SlotRingBuf_t*)> DelRing
+        = std::bind(Del_SlotRingBuf, _1);
+    inline static std::function<size_t(SlotRingBuf_t*, void *)> Push
+        = std::bind(Try_Push_SlotRingBuf, _1, _2);
+    inline static std::function<size_t(SlotRingBuf_t*, void *)> Pop
+        = std::bind(Try_Pop_SlotMpscRingBuf, _1, _2);
+};
+
+template<>
+struct RingBufTypeTrait<RingBufType::Blocked> {
+    using type = BlockedRingBuf_t;
+};
+
+template<RingBufType RingType, class Obj, size_t ObjNum>
+class RingBuf {
+    using RT = RingBufTypeTrait<RingType>;
 public:
-    ShmSpscRingBuf_t *Get_RingBuf() const
+    typename RT::type *Get_RingBuf() const noexcept
     {
         return r;
     }
 
-    T* Begin_push() const
+    size_t Push(Obj &obj) const noexcept
     {
-        if (unlikely(!r)) {
-            return nullptr;
-        }
-        return reinterpret_cast<T *>(Begin_push_shmSpscRingBuf(r));
+        return RT::Push(r, reinterpret_cast<void *>(&obj));
     }
 
-    void End_push() const
+    size_t Push(Obj &&obj) const noexcept
     {
-        if (unlikely(!r)) {
-            return;
-        }
-        End_push_shmSpscRingBuf(r);
+        return RT::Push(r, reinterpret_cast<void *>(&obj));
     }
 
-    T* Begin_pop() const
+    size_t Pop(Obj &obj) const noexcept
     {
-        if (unlikely(!r)) {
-            return nullptr;
-        }
-        return reinterpret_cast<T *>(Begin_pop_shmSpscRingBuf(r));
+        return RT::Pop(r, reinterpret_cast<void *>(&obj));
     }
 
-    void End_pop() const
+    size_t Pop(Obj &&obj) const noexcept
     {
-        if (unlikely(!r)) {
-            return;
-        }
-        End_pop_shmSpscRingBuf(r);
+        return RT::Pop(r, reinterpret_cast<void *>(&obj));
     }
 
-    explicit SpscRingBuf(const char *shmPath) noexcept : property{-1, nullptr}, r(nullptr)
+    template<RingBufType R = RingType>
+    auto Pop_SlotMpscRingBuf(Obj &obj) -> std::enable_if_t<R == RingBufType::Slot, size_t> const noexcept
     {
-        property = Get_shmSpscRingBuf(ObjNum, sizeof(T), shmPath);
-        r = reinterpret_cast<ShmSpscRingBuf_t *>(property.bufAddr);
+        return Try_Pop_SlotMpscRingBuf(r, reinterpret_cast<void *>(&obj));
     }
 
-    ~SpscRingBuf()
+    template<RingBufType R = RingType>
+    auto Begin_push() -> std::enable_if_t<R == RingBufType::Spsc, Obj*> const noexcept
     {
-        Del_shmSpscRingBuf(property);
+        return reinterpret_cast<Obj *>(Begin_push_SpscRingBuf(r));
     }
 
-    SpscRingBuf(const SpscRingBuf &other) = delete;
-
-    SpscRingBuf &operator=(const SpscRingBuf &other) = delete;
-
-    SpscRingBuf(SpscRingBuf &&other) noexcept
+    template<RingBufType R = RingType>
+    auto End_Push() -> std::enable_if_t<R == RingBufType::Spsc, void> const noexcept
     {
-        property = other.property;
+        End_push_SpscRingBuf(r);
+    }
+
+    template<RingBufType R = RingType>
+    auto Begin_pop() -> std::enable_if_t<R == RingBufType::Spsc, Obj*> const noexcept
+    {
+        return reinterpret_cast<Obj *>(Begin_pop_SpscRingBuf(r));
+    }
+
+    template<RingBufType R = RingType>
+    auto End_pop() -> std::enable_if_t<R == RingBufType::Spsc, void> const noexcept
+    {
+        End_pop_SpscRingBuf(r);
+    }
+
+    explicit RingBuf(const char *shmPath, int prot, int flag) : r(nullptr)
+    {
+        r = RT::GetRing(ObjNum, sizeof(Obj), shmPath, prot, flag);
+    }
+
+    ~RingBuf() noexcept
+    {
+        RT::DelRing(r);
+    }
+
+    RingBuf(const RingBuf &other) = delete;
+
+    RingBuf &operator=(const RingBuf &other) = delete;
+
+    RingBuf(RingBuf &&other) noexcept
+    {
         r = other.r;
-        other.property.bufAddr = nullptr;
-        other.property.fd = -1;
         other.r = nullptr;
     }
-    SpscRingBuf &operator=(SpscRingBuf &&other) noexcept
+
+    RingBuf &operator=(RingBuf &&other) noexcept
     {
         if (this == &other) {
             return *this;
         }
-        property = other.property;
         r = other.r;
-        other.property.bufAddr = nullptr;
-        other.property.fd = -1;
         other.r = nullptr;
         return *this;
     }
 private:
-    SpscRingProperty_t property;
-    ShmSpscRingBuf_t *r;
+    typename RT::type *r;
 };
-} // ShmRingBufWrapper
+} // RingBufWrapper
