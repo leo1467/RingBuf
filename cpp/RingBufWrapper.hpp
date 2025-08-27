@@ -1,6 +1,5 @@
 #pragma once
 #include <functional>
-#include <string>
 
 #include "RingBuf_public.h"
 
@@ -8,14 +7,14 @@ using namespace std::placeholders;
 
 namespace RingBufWrapper {
 
-enum class RingBufType {
-    Spsc,
-    Commit,
-    Slot,
-    Blocked,
+struct RingBufType {
+    struct Spsc {};
+    struct Commit {};
+    struct Slot {};
+    struct Blocked {};
 };
 
-template<RingBufType> 
+template<class RingTypeTag> 
 struct RingBufTypeTrait {
 };
 
@@ -64,8 +63,7 @@ template<>
 struct RingBufTypeTrait<RingBufType::Blocked> {
     using type = BlockedRingBuf_t;
 };
-
-template<RingBufType RingType, class Obj, size_t ObjNum>
+template<class RingType, class Obj, size_t ObjNum>
 class RingBuf {
     using RT = RingBufTypeTrait<RingType>;
 public:
@@ -94,32 +92,32 @@ public:
         return RT::Pop(r, reinterpret_cast<void *>(&obj));
     }
 
-    template<RingBufType R = RingType>
-    auto Pop_SlotMpscRingBuf(Obj &obj) -> std::enable_if_t<R == RingBufType::Slot, size_t> const noexcept
+    template<class R = RingType>
+    auto Pop_SlotMpscRingBuf(Obj &obj) const noexcept -> std::enable_if_t<std::is_same_v<R, RingBufType::Slot>, size_t>
     {
         return Try_Pop_SlotMpscRingBuf(r, reinterpret_cast<void *>(&obj));
     }
 
-    template<RingBufType R = RingType>
-    auto Begin_push() -> std::enable_if_t<R == RingBufType::Spsc, Obj*> const noexcept
+    template<class R = RingType>
+    auto Begin_push() const noexcept -> std::enable_if_t<std::is_same_v<R, RingBufType::Spsc>, Obj*>
     {
         return reinterpret_cast<Obj *>(Begin_push_SpscRingBuf(r));
     }
 
-    template<RingBufType R = RingType>
-    auto End_Push() -> std::enable_if_t<R == RingBufType::Spsc, void> const noexcept
+    template<class R = RingType>
+    auto End_push() const noexcept -> std::enable_if_t<std::is_same_v<R, RingBufType::Spsc>, void>
     {
         End_push_SpscRingBuf(r);
     }
 
-    template<RingBufType R = RingType>
-    auto Begin_pop() -> std::enable_if_t<R == RingBufType::Spsc, Obj*> const noexcept
+    template<class R = RingType>
+    auto Begin_pop() const noexcept -> std::enable_if_t<std::is_same_v<R, RingBufType::Spsc>, Obj*>
     {
         return reinterpret_cast<Obj *>(Begin_pop_SpscRingBuf(r));
     }
 
-    template<RingBufType R = RingType>
-    auto End_pop() -> std::enable_if_t<R == RingBufType::Spsc, void> const noexcept
+    template<class R = RingType>
+    auto End_pop() const noexcept -> std::enable_if_t<std::is_same_v<R, RingBufType::Spsc>, void>
     {
         End_pop_SpscRingBuf(r);
     }
