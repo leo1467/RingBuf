@@ -4,6 +4,16 @@
 
 #include "RingBuf_public.h"
 
+#define my_assert(expr, fmt, ...) \
+    do { \
+        if (!expr) { \
+            fprintf(stderr, \
+                        "Assertione failed: (%s)\nFile: %s, Line: %d, Function: %s\n" "Message: " fmt "\n", \
+                        #expr, __FILE__, __LINE__, __func__, ##__VA_ARGS__); \
+            abort(); \
+        } \
+    } while (0)
+
 using namespace std::placeholders;
 
 namespace RingBufWrapper {
@@ -132,6 +142,7 @@ public:
     {
         static_assert((ObjNum >= 2) && ((ObjNum & (ObjNum - 1)) == 0), "ObjNum need to be power of 2");
         r = Base::GetRing(ObjNum, sizeof(Obj), shmPath, prot, flag);
+        my_assert(r, "Ring Buf nullptr, check prot");
         p = std::shared_ptr<typename Base::type>(r, dter());
     }
 
