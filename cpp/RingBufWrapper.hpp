@@ -79,6 +79,9 @@ protected:
     using type = BlockedRingBuf_t;
 };
 
+template<typename T, typename... Options>
+inline constexpr bool is_one_of_v = (std::is_same_v<T, Options> || ...);
+
 template<typename RingType, typename Obj, size_t ObjNum>
 class RingBuf final : private RingBufTypeTrait<RingType> {
     using Base = RingBufTypeTrait<RingType>;
@@ -136,6 +139,7 @@ public:
     explicit RingBuf(const char *shmPath, int prot, int flag) : r(nullptr), p(nullptr)
     {
         static_assert((ObjNum >= 2) && ((ObjNum & (ObjNum - 1)) == 0), "ObjNum need to be power of 2");
+        static_assert(is_one_of_v<RingType, RingBufType::Spsc, RingBufType::Commit, RingBufType::Slot>, "RingType wrong");
         r = Base::GetRing(ObjNum, sizeof(Obj), shmPath, prot, flag);
         my_assert(r, "Ring Buf nullptr, check prot");
         p = std::shared_ptr<typename Base::type>(r, dter());
