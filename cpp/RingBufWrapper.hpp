@@ -103,11 +103,6 @@ public:
         return Base::Pop(r, reinterpret_cast<void *>(&obj));
     }
 
-    size_t Pop(Obj &&obj) const noexcept
-    {
-        return Base::Pop(r, reinterpret_cast<void *>(&obj));
-    }
-
     template<typename R = RingType>
     auto Pop_SlotMpscRingBuf(Obj &obj) const noexcept -> std::enable_if_t<std::is_same_v<R, RingBufType::Slot>, size_t>
     {
