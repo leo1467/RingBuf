@@ -33,8 +33,9 @@ typedef struct _BlockedRingBuf BlockedRingBuf_t;
 
 enum RingBufMappingType {
     MAP_MALLOC  = 1 << 24,
-    MAP_NEW     = 1 << 25,
-    MAP_EXIST   = 1 << 26,
+    MAP_SHM     = 1 << 25,
+    MAP_NEW     = 1 << 26,
+    MAP_EXIST   = 1 << 27,
 };
 
 #ifdef __cplusplus

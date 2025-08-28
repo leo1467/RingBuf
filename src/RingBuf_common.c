@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "RingBuf_public.h"
@@ -58,23 +59,26 @@ RingBuf_t *get_buf(const size_t objNum, const size_t objSize, const char *shmPat
     int rc = 0;
     int fd = -1;
     void *p = NULL;
-    if (prot & MAP_MALLOC) {
+
+    if (!(prot ^ (MAP_MALLOC | MAP_NEW))) {
         p = malloc(info.total_size);
         if (!p) {
             perror("malloc");
             return NULL;
         }
         fd = -999;
-    }
-    else {
+    } else if (prot & MAP_SHM) {
         if (shmPath) {
             fd = open(shmPath, O_CREAT | O_RDWR, 0666);
-        } else {
+        } else if (prot & MAP_NEW) {
             // MFD_CLOEXEC in #define _GNU_SOURCE or -D_GNU_SOURCE
             fd = memfd_create("ringBuf", MFD_CLOEXEC);
+        } else {
+            fprintf(stderr, "need shm path to work with MAP_EXIST\n");
+            return NULL;
         }
         if (fd < 0) {
-            perror("memfd_create");
+            perror("open or memfd_create");
             return NULL;
         }
 
@@ -82,6 +86,16 @@ RingBuf_t *get_buf(const size_t objNum, const size_t objSize, const char *shmPat
             rc = ftruncate(fd, info.total_size);
             if (rc < 0) {
                 perror("ftruncate");
+                return NULL;
+            }
+        } else if (prot & MAP_EXIST) {
+            struct stat st;
+            if (fstat(fd, &st) == -1) {
+                perror("fstat");
+                return NULL;
+            }
+            if (st.st_size != info.total_size) {
+                fprintf(stderr, "prducer not start yet\n");
                 return NULL;
             }
         }
@@ -92,6 +106,10 @@ RingBuf_t *get_buf(const size_t objNum, const size_t objSize, const char *shmPat
             close(fd);
             return NULL;
         }
+    }
+
+    if (!p) {
+        return NULL;
     }
 
     RingBuf_t *r = p;
