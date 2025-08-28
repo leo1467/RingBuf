@@ -1,5 +1,6 @@
 #pragma once
 #include <functional>
+#include <memory>
 
 #include "RingBuf_public.h"
 
@@ -14,7 +15,7 @@ struct RingBufType {
     struct Blocked {};
 };
 
-template<class RingTypeTag> 
+template<typename RingTypeTag> 
 class RingBufTypeTrait {
 };
 
@@ -68,7 +69,7 @@ protected:
     using type = BlockedRingBuf_t;
 };
 
-template<class RingType, class Obj, size_t ObjNum>
+template<typename RingType, typename Obj, size_t ObjNum>
 class RingBuf final : private RingBufTypeTrait<RingType> {
     using Base = RingBufTypeTrait<RingType>;
 public:
@@ -97,55 +98,64 @@ public:
         return Base::Pop(r, reinterpret_cast<void *>(&obj));
     }
 
-    template<class R = RingType>
+    template<typename R = RingType>
     auto Pop_SlotMpscRingBuf(Obj &obj) const noexcept -> std::enable_if_t<std::is_same_v<R, RingBufType::Slot>, size_t>
     {
         return Try_Pop_SlotMpscRingBuf(r, reinterpret_cast<void *>(&obj));
     }
 
-    template<class R = RingType>
+    template<typename R = RingType>
     auto Begin_push() const noexcept -> std::enable_if_t<std::is_same_v<R, RingBufType::Spsc>, Obj*>
     {
         return reinterpret_cast<Obj *>(Begin_push_SpscRingBuf(r));
     }
 
-    template<class R = RingType>
+    template<typename R = RingType>
     auto End_push() const noexcept -> std::enable_if_t<std::is_same_v<R, RingBufType::Spsc>, void>
     {
         End_push_SpscRingBuf(r);
     }
 
-    template<class R = RingType>
+    template<typename R = RingType>
     auto Begin_pop() const noexcept -> std::enable_if_t<std::is_same_v<R, RingBufType::Spsc>, Obj*>
     {
         return reinterpret_cast<Obj *>(Begin_pop_SpscRingBuf(r));
     }
 
-    template<class R = RingType>
+    template<typename R = RingType>
     auto End_pop() const noexcept -> std::enable_if_t<std::is_same_v<R, RingBufType::Spsc>, void>
     {
         End_pop_SpscRingBuf(r);
     }
 
-    explicit RingBuf(const char *shmPath, int prot, int flag) : r(nullptr)
+    explicit RingBuf(const char *shmPath, int prot, int flag) : r(nullptr), p(nullptr)
     {
         static_assert((ObjNum >= 2) && ((ObjNum & (ObjNum - 1)) == 0), "ObjNum need to be power of 2");
         r = Base::GetRing(ObjNum, sizeof(Obj), shmPath, prot, flag);
+        p = std::shared_ptr<typename Base::type>(r, dter());
     }
 
-    ~RingBuf() noexcept
+    ~RingBuf() = default;
+
+    RingBuf(const RingBuf &other)
     {
-        Base::DelRing(r);
+        r = other.r;
+        p = other.p;
     }
 
-    RingBuf(const RingBuf &other) = delete;
-
-    RingBuf &operator=(const RingBuf &other) = delete;
+    RingBuf &operator=(const RingBuf &other)
+    {
+        r = other.r;
+        p = other.p;
+        return *this;
+    }
 
     RingBuf(RingBuf &&other) noexcept
     {
         r = other.r;
         other.r = nullptr;
+        p = other.p;
+        other.p = nullptr;
     }
 
     RingBuf &operator=(RingBuf &&other) noexcept
@@ -155,9 +165,18 @@ public:
         }
         r = other.r;
         other.r = nullptr;
+        p = other.p;
+        other.p = nullptr;
         return *this;
     }
 private:
     typename Base::type *r;
+    std::shared_ptr<typename Base::type> p;
+    struct dter {
+        void operator()(typename Base::type *r)
+        {
+            Base::DelRing(r);
+        }
+    };
 };
 } // RingBufWrapper
