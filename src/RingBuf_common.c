@@ -60,7 +60,12 @@ RingBuf_t *get_buf(const size_t objNum, const size_t objSize, const char *shmPat
     int fd = -1;
     void *p = NULL;
 
-    if (!(prot ^ (MAP_MALLOC | MAP_NEW))) {
+    if (!(prot & (MAP_MALLOC | MAP_SHM))) {
+        fprintf(stderr, "Prot need MAP_SHM or MAP_MALLOC\n");
+        return NULL;
+    }
+
+    if (prot & MAP_MALLOC) {
         p = malloc(info.total_size);
         if (!p) {
             perror("malloc");
@@ -68,21 +73,23 @@ RingBuf_t *get_buf(const size_t objNum, const size_t objSize, const char *shmPat
         }
         fd = -999;
     } else if (prot & MAP_SHM) {
+        if ((prot & MAP_EXIST) && !shmPath) {
+            fprintf(stderr, "MAP_EXIST need shm path\n");
+            return NULL;
+        }
+
         if (shmPath) {
             fd = open(shmPath, O_CREAT | O_RDWR, 0666);
-        } else if (prot & MAP_NEW) {
+        } else {
             // MFD_CLOEXEC in #define _GNU_SOURCE or -D_GNU_SOURCE
             fd = memfd_create("ringBuf", MFD_CLOEXEC);
-        } else {
-            fprintf(stderr, "need shm path to work with MAP_EXIST\n");
-            return NULL;
         }
         if (fd < 0) {
             perror("open or memfd_create");
             return NULL;
         }
 
-        if (prot & MAP_NEW) {
+        if ((prot & MAP_NEW) || !shmPath) {
             rc = ftruncate(fd, info.total_size);
             if (rc < 0) {
                 perror("ftruncate");
@@ -108,12 +115,8 @@ RingBuf_t *get_buf(const size_t objNum, const size_t objSize, const char *shmPat
         }
     }
 
-    if (!p) {
-        return NULL;
-    }
-
     RingBuf_t *r = p;
-    if (prot & MAP_NEW) {
+    if (prot & (MAP_NEW | MAP_MALLOC) || !shmPath) {
         r->buffer_ = (char *)p + info.buf_off_s;
         if (useSlot & USE_SLOT) {
             r->slot_ = (atomic_size_t *)((char *)p + info.slot_off_s);
