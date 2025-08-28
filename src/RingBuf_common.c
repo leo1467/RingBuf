@@ -49,6 +49,72 @@ static SizeInfo_t get_total_size(const size_t objNum, const size_t objSize, int 
                         .total_size = total_size};
 }
 
+static void *get_buf_malloc(size_t totalSz, int *fd)
+{
+    void *p = NULL;
+    p = malloc(totalSz);
+    if (!p) {
+        perror("malloc");
+        return NULL;
+    }
+    *fd = -999;
+
+    return p;
+}
+
+static void *get_buf_shm(size_t totalSz, int *fd, int prot, const char *shmPath, bool needNew)
+{
+    int rc = 0;
+    void *p = NULL;
+
+    if ((prot & MAP_EXIST) && !shmPath) {
+        fprintf(stderr, "MAP_EXIST need shm path\n");
+        return NULL;
+    }
+
+    if (shmPath) {
+        *fd = open(shmPath, O_CREAT | O_RDWR, 0666);
+    } else {
+        // MFD_CLOEXEC in #define _GNU_SOURCE or -D_GNU_SOURCE
+        *fd = memfd_create("ringBuf", MFD_CLOEXEC);
+    }
+    if (*fd < 0) {
+        perror("open or memfd_create");
+        return NULL;
+    }
+
+    if (needNew) {
+        rc = ftruncate(*fd, totalSz);
+        if (rc < 0) {
+            perror("ftruncate");
+            return NULL;
+        }
+    } else if (prot & MAP_EXIST) {
+        struct stat st;
+        if (fstat(*fd, &st) == -1) {
+            perror("fstat");
+            return NULL;
+        }
+        if (st.st_size < 0) {
+            fprintf(stderr, "struct stat::st_size < 0\n");
+            return NULL;
+        }
+        if ((size_t)st.st_size != totalSz) {
+            fprintf(stderr, "prducer not start yet\n");
+            return NULL;
+        }
+    }
+
+    p = mmap(NULL, totalSz, PROT_READ | PROT_WRITE, MAP_SHARED, *fd, 0);
+    if (p == MAP_FAILED) {
+        perror("mmap");
+        close(*fd);
+        return NULL;
+    }
+
+    return p;
+}
+
 RingBuf_t *get_buf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag, int useSlot)
 {
     /* 物件數量只能是2的冪次才能index到正確的位置 */
@@ -56,7 +122,6 @@ RingBuf_t *get_buf(const size_t objNum, const size_t objSize, const char *shmPat
 
     SizeInfo_t info = get_total_size(objNum, objSize, useSlot);
 
-    int rc = 0;
     int fd = -1;
     void *p = NULL;
 
@@ -65,58 +130,20 @@ RingBuf_t *get_buf(const size_t objNum, const size_t objSize, const char *shmPat
         return NULL;
     }
 
+    bool needNew = (prot & (MAP_NEW | MAP_MALLOC)) | !(prot & MAP_EXIST) || !shmPath;
+
     if (prot & MAP_MALLOC) {
-        p = malloc(info.total_size);
-        if (!p) {
-            perror("malloc");
-            return NULL;
-        }
-        fd = -999;
+        p = get_buf_malloc(info.total_size, &fd);
     } else if (prot & MAP_SHM) {
-        if ((prot & MAP_EXIST) && !shmPath) {
-            fprintf(stderr, "MAP_EXIST need shm path\n");
-            return NULL;
-        }
+        p = get_buf_shm(info.total_size, &fd, prot, shmPath, needNew);
+    }
 
-        if (shmPath) {
-            fd = open(shmPath, O_CREAT | O_RDWR, 0666);
-        } else {
-            // MFD_CLOEXEC in #define _GNU_SOURCE or -D_GNU_SOURCE
-            fd = memfd_create("ringBuf", MFD_CLOEXEC);
-        }
-        if (fd < 0) {
-            perror("open or memfd_create");
-            return NULL;
-        }
-
-        if ((prot & MAP_NEW) || !shmPath) {
-            rc = ftruncate(fd, info.total_size);
-            if (rc < 0) {
-                perror("ftruncate");
-                return NULL;
-            }
-        } else if (prot & MAP_EXIST) {
-            struct stat st;
-            if (fstat(fd, &st) == -1) {
-                perror("fstat");
-                return NULL;
-            }
-            if (st.st_size != info.total_size) {
-                fprintf(stderr, "prducer not start yet\n");
-                return NULL;
-            }
-        }
-
-        p = mmap(NULL, info.total_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-        if (p == MAP_FAILED) {
-            perror("mmap");
-            close(fd);
-            return NULL;
-        }
+    if (!p) {
+        return NULL;
     }
 
     RingBuf_t *r = p;
-    if (prot & (MAP_NEW | MAP_MALLOC) || !shmPath) {
+    if (needNew) {
         r->buffer_ = (char *)p + info.buf_off_s;
         if (useSlot & USE_SLOT) {
             r->slot_ = (atomic_size_t *)((char *)p + info.slot_off_s);
