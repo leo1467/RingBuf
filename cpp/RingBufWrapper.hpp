@@ -8,7 +8,7 @@
     do { \
         if (!expr) { \
             fprintf(stderr, \
-                        "Assertione failed: (%s)\nFile: %s, Line: %d, Function: %s\n" "Message: " fmt "\n", \
+                        "Assertion failed: (%s)\nFile: %s, Line: %d, Function: %s\n" "Message: " fmt "\n", \
                         #expr, __FILE__, __LINE__, __func__, ##__VA_ARGS__); \
             abort(); \
         } \
