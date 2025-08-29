@@ -26,71 +26,319 @@ typedef struct Time_diff_ {
 typedef void (*testFunc)(Time_diff_t *arr, size_t pushed, char buf[], Obj *o);
 #endif
 
-typedef struct _MpscRingBuf MpscRingBuf_t;
+/**
+ * Types of ring buffer
+ * Underlying implement are the same except for blocked ring buf
+ * Each type has it's own corresponding functions
+ * 
+ * Spsc: single producer, single consumer
+ * Mpsc: multi producer, single consumer
+ * Mpmc: multi producer, multi consumer
+ * Blocked: blocking ring buffer, not yet implement
+ */
 typedef struct _SpscRingBuf SpscRingBuf_t;
-typedef struct _SlotRingBuf SlotRingBuf_t;
+typedef struct _MpscRingBuf MpscRingBuf_t;
+typedef struct _MpmcRingBuf MpmcRingBuf_t;
 typedef struct _BlockedRingBuf BlockedRingBuf_t;
 
+/**
+ * Determine where the ring buffer located at 
+ * Used for generate ring buffer
+ */
 enum RingBufMappingType {
-    MAP_MALLOC  = 1 << 24,
-    MAP_SHM     = 1 << 25,
-    MAP_NEW     = 1 << 26,
-    MAP_EXIST   = 1 << 27,
+    MAP_MALLOC  = 1 << 24, /**< Default, using malloc to allocate ring buffer */
+    MAP_SHM     = 1 << 25, /**< Mapping ring buffer onto shared memory */
+    MAP_NEW     = 1 << 26, /**< Default, mapping to new chunk of memory */
+    MAP_EXIST   = 1 << 27, /**< Mapping to a existing shared memory */
 };
+
+/**
+ * Callback for callback type functions
+ * To avoid memory copy
+ */
+typedef int(*Pop_cb)(void *args);
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* SPSC */
+/**
+ * Spsc functions
+ */
+
+/**
+ * Generate Spsc ring buffer
+ * 
+ * @objNum : number of objs can be placed into ring buffer
+ * @objSize : size of obj instance
+ * @shmPath : path for file backend shared memory, 
+ *            will map to anonymous if not given
+ * @prot : Oring RingBufMappingType
+ * @flag : not yet implement
+ * 
+ * Return the addr of ring buffer
+ */
 SpscRingBuf_t *Get_SpscRingBuf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag);
+
+/**
+ * Destructor for ring buffer
+ * 
+ * @p : addr of ring buffer
+ */
 void Del_SpscRingBuf(SpscRingBuf_t *p);
 
+/**
+ * Get the addr that can be written
+ * 
+ * @p : addr of ring buffer
+ * 
+ * Return the addr of available mem in ring buffer
+ * which is ready to be written, return null if full
+ */
 void *Begin_push_SpscRingBuf(SpscRingBuf_t *p);
+
+/**
+ * Followed up by begin push when finish writing
+ * A signal to consumer that the mem is ready to be read 
+ */
 void End_push_SpscRingBuf(SpscRingBuf_t *p);
+
+/**
+ * Get the addr that can be read
+ * 
+ * @p : addr of ring buffer
+ * 
+ * Return the addr of available mem in ring buffer
+ * which is ready to be read, return null if empty
+ */
 void *Begin_pop_SpscRingBuf(SpscRingBuf_t *p);
+
+/**
+ * Followed up by begin pop when finish reading
+ * A signal to producer that the mem is ready to be written 
+ */
 void End_pop_SpscRingBuf(SpscRingBuf_t *p);
 
 #if DEBUG
 size_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o);
 #else
-size_t Push_SpscRingBuf(SpscRingBuf_t *p, void *buf);
+/**
+ * Push memory into ring buffer
+ * 
+ * Spin waits if full
+ * 
+ * @p : addr of ring buffer
+ * @args : obj that need to write into ring buffer
+ * 
+ * Return the head where been pushed
+ */
+size_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args);
 #endif
+
+/**
+ * Not yet implement
+ * Push memory into ring buffer
+ * 
+ * @p : addr of ring buffer
+ * @args : obj that need to write into ring buffer
+ * 
+ * Return the head where been pushed, -1 if full
+ */
+size_t Try_push_SpscRingBuf(SpscRingBuf_t *p, void *args);
+
+/**
+ * Pop memory form ring buffer
+ * 
+ * Spin waits until finished
+ * 
+ * @p : addr of ring buffer
+ * @buf : buffer to store data in the ring buffer
+ * 
+ * Return the tail where been popped, -1 if empty
+ */
 size_t Pop_SpscRingBuf(SpscRingBuf_t *p, void *buf);
+
+/**
+ * Not yet implement
+ * Pop a chunck of memory from ring buffer
+ * 
+ * @p : addr of ring buffer
+ * @buf : buffer to store data in the ring buffer
+ * @max_num : max number to store into buffer
+ *
+ * Retrun the number of objs popped
+ */
+size_t Batch_pop_SpscRingBuf(SpscRingBuf_t *p, void *buf, size_t max_num);
+
 bool Is_empty_SpscRingBuf(SpscRingBuf_t *p);
 bool Is_full_SpscRingBuf(SpscRingBuf_t *p);
 size_t Capacity_SpscRingBuf(SpscRingBuf_t *p);
 size_t Size_SpscRingBuf(SpscRingBuf_t *p);
 
-/* commit */
+/**
+ * Mpsc functions
+ * Implement by using commit variable
+ */
+
+/**
+ * Generate Mpsc ring buffer
+ * 
+ * @objNum : number of objs can be placed into ring buffer
+ * @objSize : size of obj instance
+ * @shmPath : path for file backend shared memory, 
+ *            will map to anonymous if not given
+ * @prot : Oring RingBufMappingType
+ * @flag : not yet implement
+ * 
+ * Return the addr of ring buffer
+ */
 MpscRingBuf_t *Get_MpscRingBuf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag);
+
+/**
+ * Destructor for ring buffer
+ * @p : addr of ring buffer
+ */
 void Del_MpscRingBuf(MpscRingBuf_t *p);
 
 #if DEBUG
 size_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o);
-size_t Try_Push_MpscRingBuf(MpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o);
+size_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o);
 #else
+/**
+ * Push memory into ring buffer
+ * 
+ * Spin waits if full
+ * Spin waits other thread to finish writing which is ahead of this thread
+ * 
+ * @p : addr of ring buffer
+ * @args : obj that need to write into ring buffer
+ * 
+ * Return the head where been pushed
+ */
 size_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args);
-size_t Try_Push_MpscRingBuf(MpscRingBuf_t *p, void *args);
+
+/**
+ * Push memory into ring buffer
+ * Spin waits other thread to finish writing which is ahead of this thread
+ * 
+ * @p : addr of ring buffer
+ * @args : obj that need to write into ring buffer
+ * 
+ * Return the head where been pushed, -1 if full 
+ */
+size_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args);
 #endif
 
+/**
+ * Pop memory form ring buffer
+ * 
+ * @p : addr of ring buffer
+ * @buf : buffer to store data in the ring buffer
+ * 
+ * Return the tail where been popped, -1 if empty
+ */
 size_t Pop_MpscRingBuf(MpscRingBuf_t *p, void *buf);
+
+/**
+ * Not yet implement
+ * Execute callback immediately after getting the avalible mem in ring buffer
+ * Reduce one memory copy
+ * 
+ * @p : addr of ring buffer
+ * cb : callback for excecute
+ * 
+ * Return the return value of cb
+ */
+int Pop_w_cb_MpscRingBuf(MpscRingBuf_t *p, Pop_cb cb);
+
+/**
+ * Not yet implement
+ * Pop a chunck of memory from ring buffer
+ * 
+ * @p : addr of ring buffer
+ * @buf : buffer to store data in the ring buffer
+ * @max_num : max number to store into buffer
+ *
+ * Retrun the number of objs popped
+ */
+size_t Batch_pop_MpscRingBuf(MpscRingBuf_t *p, void *buf, size_t max_num);
+
 bool Is_empty_MpscRingBuf(MpscRingBuf_t *p);
 bool Is_full_MpscRingBuf(MpscRingBuf_t *p);
 size_t Capacity_MpscRingBuf(MpscRingBuf_t *p);
 size_t Size_MpscRingBuf(MpscRingBuf_t *p);
 
-/* slot */
-SlotRingBuf_t *Get_SlotRingBuf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag);
-void Del_SlotRingBuf(SlotRingBuf_t *p);
+/**
+ * Mpmc functions
+ * Implement by using slot array 
+ * Use this if you don't want producers blocking each other
+ */
+
+/**
+ * Generate Mpmc ring buffer
+ * 
+ * @objNum : number of objs can be placed into ring buffer
+ * @objSize : size of obj instance
+ * @shmPath : path for file backend shared memory, 
+ *            will map to anonymous if not given
+ * @prot : Oring RingBufMappingType
+ * @flag : not yet implement
+ * 
+ * Return the addr of ring buffer
+ */
+MpmcRingBuf_t *Get_MpmcRingBuf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag);
+
+/**
+ * Destructor for ring buffer
+ * @p : addr of ring buffer
+ */
+void Del_MpmcRingBuf(MpmcRingBuf_t *p);
+
 #if DEBUG
-size_t Try_Push_SlotRingBuf(SlotRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o);
+size_t Try_push_MpmcRingBuf(MpmcRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o);
 #else
-size_t Try_Push_SlotRingBuf(SlotRingBuf_t *p, void *args);
+/**
+ * Push memory into ring buffer, producers don't blocked from each other
+ * 
+ * @p : addr of ring buffer
+ * @args : obj that need to write into ring buffer
+ * 
+ * Return the head where been pushed, -1 if full, or other thread take its ticket
+ */
+size_t Try_push_MpmcRingBuf(MpmcRingBuf_t *p, void *args);
 #endif
 
-size_t Try_Pop_SlotRingBuf(SlotRingBuf_t *p, void *buf);
-size_t Try_Pop_SlotMpscRingBuf(SlotRingBuf_t *p, void *buf);
+/**
+ * Pop memory form ring buffer
+ * 
+ * @p : addr of ring buffer
+ * @buf : buffer to store data in the ring buffer
+ * 
+ * Return the tail where been popped, -1 if empty, or other thread take its ticket
+ */
+size_t Try_pop_MpmcRingBuf(MpmcRingBuf_t *p, void *buf);
+
+/**
+ * Not yet implement
+ * Execute callback immediately after getting the avalible mem in ring buffer
+ * Reduce one memory copy
+ * 
+ * @p : addr of ring buffer
+ * cb : callback for excecute
+ * 
+ * Return the return value of cb
+ */
+int Pop_w_cb_MpmcRingBuf(MpmcRingBuf_t *p, Pop_cb cb);
+
+/**
+ * Pop memory form ring buffer with only one consumer
+ * 
+ * @p : addr of ring buffer
+ * @buf : buffer to store data in the ring buffer
+ * 
+ * Return the tail where been popped, -1 if empty, or other thread take its ticket
+ */
+size_t Try_pop_MpmcMpscRingBuf(MpmcRingBuf_t *p, void *buf);
 
 #ifdef __cplusplus
 }

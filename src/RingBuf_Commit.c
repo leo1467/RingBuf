@@ -41,9 +41,9 @@ size_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args)
 }
 
 #if DEBUG
-size_t Try_Push_MpscRingBuf(MpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o)
+size_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o)
 #else
-size_t Try_Push_MpscRingBuf(MpscRingBuf_t *p, void *args)
+size_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args)
 #endif
 {
     RingBuf_t *r = (RingBuf_t *) p;

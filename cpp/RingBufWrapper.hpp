@@ -56,21 +56,21 @@ protected:
     inline static std::function<size_t(MpscRingBuf_t*, void *)> Pop
         = std::bind(Pop_MpscRingBuf, _1, _2);
     inline static std::function<size_t(MpscRingBuf_t*, void *)> Try_Push
-        = std::bind(Try_Push_MpscRingBuf, _1, _2);
+        = std::bind(Try_push_MpscRingBuf, _1, _2);
 };
 
 template<> 
 class RingBufTypeTrait<RingBufType::Slot> {
 protected:
-    using type = SlotRingBuf_t;
-    inline static std::function<SlotRingBuf_t *(const size_t, const size_t, const char *, int, int)> GetRing 
-        = std::bind(&Get_SlotRingBuf, _1, _2, _3, _4, _5);
-    inline static std::function<void(SlotRingBuf_t*)> DelRing
-        = std::bind(Del_SlotRingBuf, _1);
-    inline static std::function<size_t(SlotRingBuf_t*, void *)> Push
-        = std::bind(Try_Push_SlotRingBuf, _1, _2);
-    inline static std::function<size_t(SlotRingBuf_t*, void *)> Pop
-        = std::bind(Try_Pop_SlotMpscRingBuf, _1, _2);
+    using type = MpmcRingBuf_t;
+    inline static std::function<MpmcRingBuf_t *(const size_t, const size_t, const char *, int, int)> GetRing 
+        = std::bind(&Get_MpmcRingBuf, _1, _2, _3, _4, _5);
+    inline static std::function<void(MpmcRingBuf_t*)> DelRing
+        = std::bind(Del_MpmcRingBuf, _1);
+    inline static std::function<size_t(MpmcRingBuf_t*, void *)> Push
+        = std::bind(Try_push_MpmcRingBuf, _1, _2);
+    inline static std::function<size_t(MpmcRingBuf_t*, void *)> Pop
+        = std::bind(Try_pop_MpmcMpscRingBuf, _1, _2);
 };
 
 template<>
@@ -109,7 +109,7 @@ public:
     template<typename R = RingType>
     auto Pop_SlotMpscRingBuf(Obj &obj) const noexcept -> std::enable_if_t<std::is_same_v<R, RingBufType::Slot>, size_t>
     {
-        return Try_Pop_SlotMpscRingBuf(r, reinterpret_cast<void *>(&obj));
+        return Try_pop_MpmcMpscRingBuf(r, reinterpret_cast<void *>(&obj));
     }
 
     template<typename R = RingType>

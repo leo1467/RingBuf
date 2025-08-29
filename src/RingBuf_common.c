@@ -67,14 +67,16 @@ static void *get_buf_shm(size_t totalSz, int *fd, int prot, const char *shmPath,
     int rc = 0;
     void *p = NULL;
 
-    if ((prot & MAP_EXIST) && !shmPath) {
+    if (!needNew && !shmPath) {
         fprintf(stderr, "MAP_EXIST need shm path\n");
         return NULL;
     }
 
     if (shmPath) {
+        // fprintf(stdout, "RingBuf file backend\n");;
         *fd = open(shmPath, O_CREAT | O_RDWR, 0666);
     } else {
+        // fprintf(stdout, "RingBuf file anonymous\n");;
         // MFD_CLOEXEC in #define _GNU_SOURCE or -D_GNU_SOURCE
         *fd = memfd_create("ringBuf", MFD_CLOEXEC);
     }
@@ -130,13 +132,19 @@ RingBuf_t *get_buf(const size_t objNum, const size_t objSize, const char *shmPat
         return NULL;
     }
 
-    bool needNew = (prot & (MAP_NEW | MAP_MALLOC)) | !(prot & MAP_EXIST) || !shmPath;
+    bool useMalloc = !(prot & (MAP_MALLOC | MAP_SHM)) || (prot & MAP_MALLOC);
+    bool useSHM = !useMalloc;
+    bool needNew = true;
 
-    if (prot & MAP_MALLOC) {
+    if (useMalloc) {
+        // fprintf(stdout, "RingBuf use malloc\n");;
         p = get_buf_malloc(info.total_size, &fd);
-    } else if (prot & MAP_SHM) {
+    } else if (useSHM) {
+        // fprintf(stdout, "RingBuf use shm\n");;
+        needNew = !(prot & MAP_EXIST);
         p = get_buf_shm(info.total_size, &fd, prot, shmPath, needNew);
     }
+    // fprintf(stdout, "RingBuf needNew=%d\n", needNew);;
 
     if (!p) {
         return NULL;
