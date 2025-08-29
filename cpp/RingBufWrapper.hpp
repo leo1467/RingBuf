@@ -1,6 +1,7 @@
 #pragma once
 #include <functional>
 #include <memory>
+#include <tuple>
 
 #include "RingBuf_public.h"
 
@@ -20,8 +21,8 @@ namespace RingBufWrapper {
 
 struct RingBufType {
     struct Spsc {};
-    struct Commit {};
-    struct Slot {};
+    struct Mpsc {};
+    struct Mpmc {};
     struct Blocked {};
 };
 
@@ -44,7 +45,7 @@ protected:
 };
 
 template<> 
-class RingBufTypeTrait<RingBufType::Commit> {
+class RingBufTypeTrait<RingBufType::Mpsc> {
 protected:
     using type = MpscRingBuf_t;
     inline static std::function<MpscRingBuf_t *(const size_t, const size_t, const char *, int, int)> GetRing 
@@ -57,10 +58,12 @@ protected:
         = std::bind(Pop_MpscRingBuf, _1, _2);
     inline static std::function<size_t(MpscRingBuf_t*, void *)> Try_Push
         = std::bind(Try_push_MpscRingBuf, _1, _2);
+    inline static std::function<int(MpscRingBuf_t*, Pop_cb, void *args)> Pop_w_cb
+        = std::bind(Pop_w_cb_MpscRingBuf, _1, _2, _3);
 };
 
 template<> 
-class RingBufTypeTrait<RingBufType::Slot> {
+class RingBufTypeTrait<RingBufType::Mpmc> {
 protected:
     using type = MpmcRingBuf_t;
     inline static std::function<MpmcRingBuf_t *(const size_t, const size_t, const char *, int, int)> GetRing 
@@ -71,6 +74,8 @@ protected:
         = std::bind(Try_push_MpmcRingBuf, _1, _2);
     inline static std::function<size_t(MpmcRingBuf_t*, void *)> Pop
         = std::bind(Try_pop_MpmcMpscRingBuf, _1, _2);
+    inline static std::function<int(MpmcRingBuf_t*, Pop_cb, void *args)> Pop_w_cb
+        = std::bind(Pop_w_cb_MpmcRingBuf, _1, _2, _3);
 };
 
 template<>
@@ -91,55 +96,55 @@ public:
         return r;
     }
 
-    size_t Push(Obj &obj) const noexcept
+    template<typename T>
+    size_t Push(T &&obj) const noexcept
     {
+        static_assert(std::is_same_v<std::decay_t<T>, Obj>, "Push incorrect object type");
         return Base::Push(r, reinterpret_cast<void *>(&obj));
     }
 
-    size_t Push(Obj &&obj) const noexcept
-    {
-        return Base::Push(r, reinterpret_cast<void *>(&obj));
-    }
-
-    size_t Pop(Obj &obj) const noexcept
+    template<typename T>
+    size_t Pop(T &obj) const noexcept
     {
         return Base::Pop(r, reinterpret_cast<void *>(&obj));
     }
 
+    template<typename R = RingType, typename Callable, typename... Args>
+    int Pop_w_cb(Callable &&callback, Args&&... args) const noexcept
+    {
+        auto user_args_tuple = std::make_tuple(std::forward<Args>(args)...);
+        struct TrampolineContext {
+            Callable &cpp_callback;
+            decltype(user_args_tuple) &user_args;
+        };
+
+        TrampolineContext context = {callback, user_args_tuple};
+        auto trampoline = [](void *obj_in_buf, void *user_context_ptr) -> int {
+            TrampolineContext *ctx = static_cast<TrampolineContext *>(user_context_ptr);
+            int rc = std::apply([&](auto &&... unpacked_args) { return std::invoke(ctx->cpp_callback, obj_in_buf, unpacked_args...); }, ctx->user_args);
+            return rc;
+        };
+
+        if constexpr (is_one_of_v<RingType, RingBufType::Mpsc, RingBufType::Mpmc>) {
+            return Base::Pop_w_cb(r, trampoline, &context);
+        } else {
+            Obj *p = reinterpret_cast<Obj *>(Begin_pop_SpscRingBuf(r));
+            int rc = trampoline(p, &context);
+            End_pop_SpscRingBuf(r); 
+            return rc;
+        }
+    }
+
     template<typename R = RingType>
-    auto Pop_SlotMpscRingBuf(Obj &obj) const noexcept -> std::enable_if_t<std::is_same_v<R, RingBufType::Slot>, size_t>
+    auto Pop_SlotMpscRingBuf(Obj &obj) const noexcept -> std::enable_if_t<std::is_same_v<R, RingBufType::Mpmc>, size_t>
     {
         return Try_pop_MpmcMpscRingBuf(r, reinterpret_cast<void *>(&obj));
-    }
-
-    template<typename R = RingType>
-    auto Begin_push() const noexcept -> std::enable_if_t<std::is_same_v<R, RingBufType::Spsc>, Obj*>
-    {
-        return reinterpret_cast<Obj *>(Begin_push_SpscRingBuf(r));
-    }
-
-    template<typename R = RingType>
-    auto End_push() const noexcept -> std::enable_if_t<std::is_same_v<R, RingBufType::Spsc>, void>
-    {
-        End_push_SpscRingBuf(r);
-    }
-
-    template<typename R = RingType>
-    auto Begin_pop() const noexcept -> std::enable_if_t<std::is_same_v<R, RingBufType::Spsc>, Obj*>
-    {
-        return reinterpret_cast<Obj *>(Begin_pop_SpscRingBuf(r));
-    }
-
-    template<typename R = RingType>
-    auto End_pop() const noexcept -> std::enable_if_t<std::is_same_v<R, RingBufType::Spsc>, void>
-    {
-        End_pop_SpscRingBuf(r);
     }
 
     explicit RingBuf(const char *shmPath, int prot, int flag) : r(nullptr), p(nullptr)
     {
         static_assert((ObjNum >= 2) && ((ObjNum & (ObjNum - 1)) == 0), "ObjNum need to be power of 2");
-        static_assert(is_one_of_v<RingType, RingBufType::Spsc, RingBufType::Commit, RingBufType::Slot>, "RingType wrong");
+        static_assert(is_one_of_v<RingType, RingBufType::Spsc, RingBufType::Mpsc, RingBufType::Mpmc>, "RingType wrong");
         r = Base::GetRing(ObjNum, sizeof(Obj), shmPath, prot, flag);
         my_assert(r, "Ring Buf nullptr, check prot");
         p = std::shared_ptr<typename Base::type>(r, dter());
