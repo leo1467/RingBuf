@@ -79,6 +79,19 @@ size_t Pop_MpscRingBuf(MpscRingBuf_t *p, void *buf)
     return curr_tail;
 }
 
+int Pop_w_cb_MpscRingBuf(MpscRingBuf_t *p, Pop_cb cb, void *args)
+{
+    RingBuf_t *r = (RingBuf_t *) p;
+    const size_t curr_commit = atomic_load_explicit(&r->commit_, memory_order_acquire);
+    const size_t curr_tail = atomic_load_explicit(&r->tail_, memory_order_relaxed);
+    if (curr_tail == curr_commit) {
+        return -1;
+    }
+    int rc = cb(&r->buffer_[(curr_tail & r->mask_) * r->objSize_], args);
+    atomic_store_explicit(&r->tail_, curr_tail + 1, memory_order_release);
+    return rc;
+}
+
 bool Is_empty_MpscRingBuf(MpscRingBuf_t *p)
 {
     RingBuf_t *r = (RingBuf_t *) p;

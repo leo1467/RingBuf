@@ -61,6 +61,27 @@ size_t Try_pop_MpmcRingBuf(MpmcRingBuf_t *p, void *buf)
     return curr_tail;
 }
 
+int Pop_w_cb_MpmcRingBuf(MpmcRingBuf_t *p, Pop_cb cb, void *args)
+{
+    RingBuf_t *r = (RingBuf_t *) p;
+    size_t curr_head = atomic_load_explicit(&r->head_, memory_order_acquire);
+    size_t curr_tail = atomic_load_explicit(&r->tail_, memory_order_acquire);
+    if (curr_head == curr_tail) {
+        return -1;
+    }
+    const size_t expected_signal = curr_tail + 1;
+    if (atomic_load_explicit(&r->slot_[curr_tail & r->mask_], memory_order_acquire) != expected_signal) {
+        return -1;
+    }
+
+    if (!atomic_compare_exchange_weak_explicit(&r->tail_, &curr_tail, expected_signal, memory_order_release, memory_order_relaxed)) {
+        return -1;
+    }
+    int rc = cb(&r->buffer_[(curr_tail & r->mask_) * r->objSize_], args);
+    return rc;
+}
+
+
 size_t Try_pop_MpmcMpscRingBuf(MpmcRingBuf_t *p, void *buf)
 {
     RingBuf_t *r = (RingBuf_t *) p;

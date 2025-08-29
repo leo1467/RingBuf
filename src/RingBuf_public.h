@@ -56,7 +56,7 @@ enum RingBufMappingType {
  * Callback for callback type functions
  * To avoid memory copy
  */
-typedef int(*Pop_cb)(void *args);
+typedef int(*Pop_cb)(void *obj, void *args);
 
 #ifdef __cplusplus
 extern "C" {
@@ -240,7 +240,6 @@ size_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args);
 size_t Pop_MpscRingBuf(MpscRingBuf_t *p, void *buf);
 
 /**
- * Not yet implement
  * Execute callback immediately after getting the avalible mem in ring buffer
  * Reduce one memory copy
  * 
@@ -249,7 +248,7 @@ size_t Pop_MpscRingBuf(MpscRingBuf_t *p, void *buf);
  * 
  * Return the return value of cb
  */
-int Pop_w_cb_MpscRingBuf(MpscRingBuf_t *p, Pop_cb cb);
+int Pop_w_cb_MpscRingBuf(MpscRingBuf_t *p, Pop_cb cb, void *args);
 
 /**
  * Not yet implement
@@ -319,7 +318,6 @@ size_t Try_push_MpmcRingBuf(MpmcRingBuf_t *p, void *args);
 size_t Try_pop_MpmcRingBuf(MpmcRingBuf_t *p, void *buf);
 
 /**
- * Not yet implement
  * Execute callback immediately after getting the avalible mem in ring buffer
  * Reduce one memory copy
  * 
@@ -328,7 +326,7 @@ size_t Try_pop_MpmcRingBuf(MpmcRingBuf_t *p, void *buf);
  * 
  * Return the return value of cb
  */
-int Pop_w_cb_MpmcRingBuf(MpmcRingBuf_t *p, Pop_cb cb);
+int Pop_w_cb_MpmcRingBuf(MpmcRingBuf_t *p, Pop_cb cb, void *args);
 
 /**
  * Pop memory form ring buffer with only one consumer
