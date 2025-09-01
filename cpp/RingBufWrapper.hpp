@@ -2,6 +2,7 @@
 #include <functional>
 #include <memory>
 #include <tuple>
+#include <type_traits>
 
 #include "RingBuf_public.h"
 
@@ -97,20 +98,20 @@ public:
     }
 
     template<typename T>
-    size_t Push(T &&obj) const noexcept
+    size_t Push(T &&obj) noexcept
     {
         static_assert(std::is_same_v<std::decay_t<T>, Obj>, "Push incorrect object type");
         return Base::Push(r, reinterpret_cast<void *>(&obj));
     }
 
     template<typename T>
-    size_t Pop(T &obj) const noexcept
+    size_t Pop(T &obj) noexcept
     {
         return Base::Pop(r, reinterpret_cast<void *>(&obj));
     }
 
-    template<typename R = RingType, typename Callable, typename... Args>
-    int Pop_w_cb(Callable &&callback, Args&&... args) const noexcept
+    template<typename R = RingType, typename Callable, typename... Args, std::enable_if_t<!std::is_function_v<std::remove_pointer_t<std::decay_t<Callable>>>, int> = 0>
+    int Pop_w_cb(Callable &&callback, Args&&... args) noexcept(noexcept(std::invoke(std::forward<Callable>(callback), std::declval<Obj*>(), std::forward<Args>(args)...)))
     {
         auto user_args_tuple = std::make_tuple(std::forward<Args>(args)...);
         struct TrampolineContext {
@@ -135,8 +136,20 @@ public:
         }
     }
 
+    int Pop_w_cb(Pop_cb cb, void *args) noexcept
+    {
+        if constexpr (is_one_of_v<RingType, RingBufType::Mpsc, RingBufType::Mpmc>) {
+            return Base::Pop_w_cb(r, cb, args);
+        } else {
+            void *p = Begin_pop_SpscRingBuf(r);
+            int rc = cb(p, args);
+            End_pop_SpscRingBuf(r); 
+            return rc;
+        }
+    }
+
     template<typename R = RingType>
-    auto Pop_SlotMpscRingBuf(Obj &obj) const noexcept -> std::enable_if_t<std::is_same_v<R, RingBufType::Mpmc>, size_t>
+    auto Pop_SlotMpscRingBuf(Obj &obj) noexcept -> std::enable_if_t<std::is_same_v<R, RingBufType::Mpmc>, size_t>
     {
         return Try_pop_MpmcMpscRingBuf(r, reinterpret_cast<void *>(&obj));
     }
