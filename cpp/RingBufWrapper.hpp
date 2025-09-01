@@ -154,49 +154,28 @@ public:
         return Try_pop_MpmcMpscRingBuf(r, reinterpret_cast<void *>(&obj));
     }
 
-    explicit RingBuf(const char *shmPath, int prot, int flag) : r(nullptr), p(nullptr)
+    int Init(const char *shmPath, int prot, int flag)
     {
         static_assert((ObjNum >= 2) && ((ObjNum & (ObjNum - 1)) == 0), "ObjNum need to be power of 2");
         static_assert(is_one_of_v<RingType, RingBufType::Spsc, RingBufType::Mpsc, RingBufType::Mpmc>, "RingType wrong");
         r = Base::GetRing(ObjNum, sizeof(Obj), shmPath, prot, flag);
         my_assert(r, "Ring Buf nullptr, check prot");
         p = std::shared_ptr<typename Base::type>(r, dter());
+
+        return 0;
     }
 
+    explicit RingBuf(const char *shmPath, int prot, int flag) : r(nullptr), p(nullptr)
+    {
+        Init(shmPath, prot, flag);
+    }
+
+    explicit RingBuf() noexcept : r(nullptr), p(nullptr) {}
     ~RingBuf() = default;
-
-    RingBuf(const RingBuf &other)
-    {
-        r = other.r;
-        p = other.p;
-    }
-
-    RingBuf &operator=(const RingBuf &other)
-    {
-        r = other.r;
-        p = other.p;
-        return *this;
-    }
-
-    RingBuf(RingBuf &&other) noexcept
-    {
-        r = other.r;
-        other.r = nullptr;
-        p = other.p;
-        other.p = nullptr;
-    }
-
-    RingBuf &operator=(RingBuf &&other) noexcept
-    {
-        if (this == &other) {
-            return *this;
-        }
-        r = other.r;
-        other.r = nullptr;
-        p = other.p;
-        other.p = nullptr;
-        return *this;
-    }
+    RingBuf(const RingBuf &other) = default;
+    RingBuf &operator=(const RingBuf &other) = default;
+    RingBuf(RingBuf &&other) = default;
+    RingBuf &operator=(RingBuf &&other) = default;
 private:
     typename Base::type *r;
     std::shared_ptr<typename Base::type> p;
