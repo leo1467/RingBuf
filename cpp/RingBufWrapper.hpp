@@ -165,20 +165,20 @@ public:
         return 0;
     }
 
-    explicit RingBuf(const char *shmPath, int prot, int flag) : r(nullptr), p(nullptr)
+    explicit RingBuf(const char *shmPath, int prot, int flag)
     {
         Init(shmPath, prot, flag);
     }
 
-    explicit RingBuf() noexcept : r(nullptr), p(nullptr) {}
+    RingBuf() = default;
     ~RingBuf() = default;
     RingBuf(const RingBuf &other) = default;
     RingBuf &operator=(const RingBuf &other) = default;
     RingBuf(RingBuf &&other) = default;
     RingBuf &operator=(RingBuf &&other) = default;
 private:
-    typename Base::type *r;
-    std::shared_ptr<typename Base::type> p;
+    typename Base::type *r = nullptr;
+    std::shared_ptr<typename Base::type> p = nullptr;
     struct dter {
         void operator()(typename Base::type *r)
         {
