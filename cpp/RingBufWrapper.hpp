@@ -149,7 +149,7 @@ public:
     }
 
     template<typename R = RingType>
-    auto Pop_SlotMpscRingBuf(Obj &obj) noexcept -> std::enable_if_t<std::is_same_v<R, RingBufType::Mpmc>, size_t>
+    auto Pop_MpmcMpscRingBuf(Obj &obj) noexcept -> std::enable_if_t<std::is_same_v<R, RingBufType::Mpmc>, size_t>
     {
         return Try_pop_MpmcMpscRingBuf(r, reinterpret_cast<void *>(&obj));
     }
