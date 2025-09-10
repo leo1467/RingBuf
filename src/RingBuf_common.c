@@ -162,6 +162,7 @@ RingBuf_t *get_buf(const size_t objNum, const size_t objSize, const char *shmPat
         r->objNum_ = objNum;
         r->mask_ = objNum - 1;
         r->objSize_ = objSize;
+        r->totalSize_ = info.total_size;
         r->fd = fd;
         atomic_init(&r->head_, 0);
         atomic_init(&r->tail_, 0);
@@ -182,7 +183,7 @@ void del_buf(RingBuf_t *r)
     }
 
     if (r->fd >= 0 && r) {
-        munmap(r, r->objNum_ * r->objSize_ + sizeof(RingBuf_t));
+        munmap(r, r->totalSize_);
     } else if (r->fd == -999) {
         free(r);
     }

@@ -21,10 +21,11 @@ typedef struct _RingBuf {
     size_t objSize_;
     size_t objNum_;
     size_t mask_;
+    size_t totalSize_;
     int fd;
     char *buffer_;
     atomic_size_t *slot_;
-    char pad3[CACHE_LINE_SIZE - sizeof(size_t) * 3 - sizeof(int) - sizeof(atomic_size_t *) - sizeof(char *)];
+    char pad3[CACHE_LINE_SIZE - sizeof(size_t) * 4 - sizeof(int) - sizeof(atomic_size_t *) - sizeof(char *)];
 } __attribute__((__aligned__(CACHE_LINE_SIZE))) RingBuf_t;
 
 RingBuf_t *get_buf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag, int useSlot);
