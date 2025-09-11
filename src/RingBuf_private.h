@@ -2,6 +2,7 @@
 #include "RingBuf_public.h"
 
 #define CACHE_LINE_SIZE 64
+#define RETRY_NUM 64
 
 enum RingBufSlot {
     USE_SLOT = 1 << 0,

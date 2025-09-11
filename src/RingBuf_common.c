@@ -102,7 +102,7 @@ static void *get_buf_shm(size_t totalSz, int *fd, int prot, const char *shmPath,
             return NULL;
         }
         if ((size_t)st.st_size != totalSz) {
-            fprintf(stderr, "prducer not start yet\n");
+            fprintf(stderr, "producer not start yet\n");
             return NULL;
         }
     }
@@ -137,14 +137,11 @@ RingBuf_t *get_buf(const size_t objNum, const size_t objSize, const char *shmPat
     bool needNew = true;
 
     if (useMalloc) {
-        // fprintf(stdout, "RingBuf use malloc\n");;
         p = get_buf_malloc(info.total_size, &fd);
     } else if (useSHM) {
-        // fprintf(stdout, "RingBuf use shm\n");;
         needNew = !(prot & MAP_EXIST);
         p = get_buf_shm(info.total_size, &fd, prot, shmPath, needNew);
     }
-    // fprintf(stdout, "RingBuf needNew=%d\n", needNew);;
 
     if (!p) {
         return NULL;
@@ -152,21 +149,24 @@ RingBuf_t *get_buf(const size_t objNum, const size_t objSize, const char *shmPat
 
     RingBuf_t *r = p;
     if (needNew) {
+        atomic_init(&r->head_, 0);
+        atomic_init(&r->commit_, 0);
+        atomic_init(&r->tail_, 0);
+        r->objSize_ = objSize;
+        r->objNum_ = objNum;
+        r->mask_ = objNum - 1;
+        r->totalSize_ = info.total_size;
+        r->fd = fd;
         r->buffer_ = (char *)p + info.buf_off_s;
         if (useSlot & USE_SLOT) {
             r->slot_ = (atomic_size_t *)((char *)p + info.slot_off_s);
+            for (size_t i = 0; i < r->objNum_; ++i) {
+                // 初始化 slot 為 i，因為初始狀態下，slot i 可供寫入
+                atomic_store_explicit(&r->slot_[i], i, memory_order_release);
+            }
         } else if (useSlot & NO_SLOT) {
             r->slot_ = NULL;
         }
-
-        r->objNum_ = objNum;
-        r->mask_ = objNum - 1;
-        r->objSize_ = objSize;
-        r->totalSize_ = info.total_size;
-        r->fd = fd;
-        atomic_init(&r->head_, 0);
-        atomic_init(&r->tail_, 0);
-        atomic_init(&r->commit_, 0);
     }
 
     return r;

@@ -47,23 +47,29 @@ size_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args)
 #endif
 {
     RingBuf_t *r = (RingBuf_t *) p;
-    size_t curr_head = atomic_load_explicit(&r->head_, memory_order_relaxed);
-    size_t curr_tail = atomic_load_explicit(&r->tail_, memory_order_acquire);
-    if (curr_head - curr_tail >= r->objNum_) {
-        return -1;
-    }
-    if (!atomic_compare_exchange_weak_explicit(&r->head_, &curr_head, curr_head + 1, memory_order_release, memory_order_relaxed)) {
-        return -1;
+    unsigned spin = 0;
+    size_t expected_head = atomic_load_explicit(&r->head_, memory_order_acquire);
+
+    for (;;) {
+        size_t curr_tail = atomic_load_explicit(&r->tail_, memory_order_acquire);
+        if (expected_head - curr_tail >= r->objNum_) {
+            return -1;
+        }
+        if (atomic_compare_exchange_weak_explicit(&r->head_, &expected_head, expected_head + 1, memory_order_acq_rel, memory_order_relaxed)) {
+            break;
+        }
+        if (++spin > RETRY_NUM) return -1;
     }
 #if DEBUG
-    cb(arr, curr_head, buf, o);
+    cb(arr, expected_head, buf, o);
 #endif
-    memcpy(&r->buffer_[(curr_head & r->mask_) * r->objSize_], args, r->objSize_);
-    while (atomic_load_explicit(&r->commit_, memory_order_relaxed) != curr_head) {
+    const size_t idx = expected_head & r->mask_;
+    memcpy(&r->buffer_[idx * r->objSize_], args, r->objSize_);
+    while (atomic_load_explicit(&r->commit_, memory_order_relaxed) != expected_head) {
         cpu_relax();
     }
-    atomic_store_explicit(&r->commit_, curr_head + 1, memory_order_release);
-    return curr_head;
+    atomic_store_explicit(&r->commit_, expected_head + 1, memory_order_release);
+    return expected_head;
 }
 
 size_t Pop_MpscRingBuf(MpscRingBuf_t *p, void *buf)
@@ -74,7 +80,8 @@ size_t Pop_MpscRingBuf(MpscRingBuf_t *p, void *buf)
     if (curr_tail == curr_commit) {
         return -1;
     }
-    memcpy(buf, &r->buffer_[(curr_tail & r->mask_) * r->objSize_], r->objSize_);
+    const size_t idx = curr_tail & r->mask_;
+    memcpy(buf, &r->buffer_[idx * r->objSize_], r->objSize_);
     atomic_store_explicit(&r->tail_, curr_tail + 1, memory_order_release);
     return curr_tail;
 }
@@ -87,7 +94,8 @@ int Pop_w_cb_MpscRingBuf(MpscRingBuf_t *p, Pop_cb cb, void *args)
     if (curr_tail == curr_commit) {
         return -1;
     }
-    int rc = cb(&r->buffer_[(curr_tail & r->mask_) * r->objSize_], args);
+    const size_t idx = curr_tail & r->mask_;
+    int rc = cb(&r->buffer_[idx * r->objSize_], args);
     atomic_store_explicit(&r->tail_, curr_tail + 1, memory_order_release);
     return rc;
 }

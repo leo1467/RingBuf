@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/* Platform-specific CPU pause/yield for spin-wait loops */
 #if defined(__x86_64__) || defined(__i386__)
 #define cpu_relax() __builtin_ia32_pause()
 #else
@@ -28,13 +29,13 @@ typedef void (*testFunc)(Time_diff_t *arr, size_t pushed, char buf[], Obj *o);
 
 /**
  * Types of ring buffer
- * Underlying implement are the same except for blocked ring buf
- * Each type has it's own corresponding functions
+ * Underlying implementation is similar except for the blocked ring buffer (Not yet implementeded)
+ * Each type has its own corresponding API functions
  * 
  * Spsc: single producer, single consumer
  * Mpsc: multi producer, single consumer
  * Mpmc: multi producer, multi consumer
- * Blocked: blocking ring buffer, not yet implement
+ * Blocked: blocking ring buffer, Not yet implemented
  */
 typedef struct _SpscRingBuf SpscRingBuf_t;
 typedef struct _MpscRingBuf MpscRingBuf_t;
@@ -43,7 +44,7 @@ typedef struct _BlockedRingBuf BlockedRingBuf_t;
 
 /**
  * Determine where the ring buffer located at 
- * Used for generate ring buffer
+ * Used to specify the memory allocation/mapping method for the ring buffer
  */
 enum RingBufMappingType {
     MAP_MALLOC  = 1 << 24, /**< Default, using malloc to allocate ring buffer */
@@ -54,7 +55,7 @@ enum RingBufMappingType {
 
 /**
  * Callback for callback type functions
- * To avoid memory copy
+ * Used in callback-based pop functions to avoid extra memory copy
  */
 typedef int(*Pop_cb)(void *obj, void *args);
 
@@ -74,7 +75,7 @@ extern "C" {
  * @shmPath : path for file backend shared memory, 
  *            will map to anonymous if not given
  * @prot : Oring RingBufMappingType
- * @flag : not yet implement
+ * @flag : Not yet implemented
  * 
  * Return the addr of ring buffer
  */
@@ -130,36 +131,25 @@ size_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *
  * @p : addr of ring buffer
  * @args : obj that need to write into ring buffer
  * 
- * Return the head where been pushed
+ * Return the head index where data was pushed
  */
 size_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args);
 #endif
 
 /**
- * Not yet implement
- * Push memory into ring buffer
- * 
- * @p : addr of ring buffer
- * @args : obj that need to write into ring buffer
- * 
- * Return the head where been pushed, -1 if full
- */
-size_t Try_push_SpscRingBuf(SpscRingBuf_t *p, void *args);
-
-/**
- * Pop memory form ring buffer
+ * Pop memory from ring buffer
  * 
  * Spin waits until finished
  * 
  * @p : addr of ring buffer
  * @buf : buffer to store data in the ring buffer
  * 
- * Return the tail where been popped, -1 if empty
+ * Return the tail index where data was popped, -1 if empty
  */
 size_t Pop_SpscRingBuf(SpscRingBuf_t *p, void *buf);
 
 /**
- * Not yet implement
+ * Not yet implemented
  * Pop a chunck of memory from ring buffer
  * 
  * @p : addr of ring buffer
@@ -188,7 +178,7 @@ size_t Size_SpscRingBuf(SpscRingBuf_t *p);
  * @shmPath : path for file backend shared memory, 
  *            will map to anonymous if not given
  * @prot : Oring RingBufMappingType
- * @flag : not yet implement
+ * @flag : Not yet implemented
  * 
  * Return the addr of ring buffer
  */
@@ -213,7 +203,7 @@ size_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args, testFunc cb, Time_diff
  * @p : addr of ring buffer
  * @args : obj that need to write into ring buffer
  * 
- * Return the head where been pushed
+ * Return the head index where data was pushed
  */
 size_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args);
 
@@ -224,13 +214,13 @@ size_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args);
  * @p : addr of ring buffer
  * @args : obj that need to write into ring buffer
  * 
- * Return the head where been pushed, -1 if full 
+ * Return the head index where data was pushed, -1 if full or contention
  */
 size_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args);
 #endif
 
 /**
- * Pop memory form ring buffer
+ * Pop memory from ring buffer
  * 
  * @p : addr of ring buffer
  * @buf : buffer to store data in the ring buffer
@@ -246,12 +236,12 @@ size_t Pop_MpscRingBuf(MpscRingBuf_t *p, void *buf);
  * @p : addr of ring buffer
  * cb : callback for excecute
  * 
- * Return the return value of cb
+ * Return the value returned by cb, -1 if empty
  */
 int Pop_w_cb_MpscRingBuf(MpscRingBuf_t *p, Pop_cb cb, void *args);
 
 /**
- * Not yet implement
+ * Not yet implemented
  * Pop a chunck of memory from ring buffer
  * 
  * @p : addr of ring buffer
@@ -281,7 +271,7 @@ size_t Size_MpscRingBuf(MpscRingBuf_t *p);
  * @shmPath : path for file backend shared memory, 
  *            will map to anonymous if not given
  * @prot : Oring RingBufMappingType
- * @flag : not yet implement
+ * @flag : Not yet implemented
  * 
  * Return the addr of ring buffer
  */
@@ -302,18 +292,18 @@ size_t Try_push_MpmcRingBuf(MpmcRingBuf_t *p, void *args, testFunc cb, Time_diff
  * @p : addr of ring buffer
  * @args : obj that need to write into ring buffer
  * 
- * Return the head where been pushed, -1 if full, or other thread take its ticket
+ * Return the head index where data was pushed, -1 if full or contention
  */
 size_t Try_push_MpmcRingBuf(MpmcRingBuf_t *p, void *args);
 #endif
 
 /**
- * Pop memory form ring buffer
+ * Pop memory from ring buffer
  * 
  * @p : addr of ring buffer
  * @buf : buffer to store data in the ring buffer
  * 
- * Return the tail where been popped, -1 if empty, or other thread take its ticket
+ * Return the tail index where data was popped, -1 if empty or contention
  */
 size_t Try_pop_MpmcRingBuf(MpmcRingBuf_t *p, void *buf);
 
@@ -324,17 +314,17 @@ size_t Try_pop_MpmcRingBuf(MpmcRingBuf_t *p, void *buf);
  * @p : addr of ring buffer
  * cb : callback for excecute
  * 
- * Return the return value of cb
+ * Return the value returned by cb, -1 if empty or contention
  */
 int Pop_w_cb_MpmcRingBuf(MpmcRingBuf_t *p, Pop_cb cb, void *args);
 
 /**
- * Pop memory form ring buffer with only one consumer
+ * Pop memory from ring buffer with only one consumer
  * 
  * @p : addr of ring buffer
  * @buf : buffer to store data in the ring buffer
  * 
- * Return the tail where been popped, -1 if empty, or other thread take its ticket
+ * Return the tail index where data was popped, -1 if empty or contention. Only safe for single consumer (MPSC) use.
  */
 size_t Try_pop_MpmcMpscRingBuf(MpmcRingBuf_t *p, void *buf);
 
