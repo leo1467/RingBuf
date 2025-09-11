@@ -42,11 +42,6 @@ typedef void (*testFunc)(Time_diff_t *arr, size_t pushed, char buf[], Obj *o);
 #define RINGBUF_MAPPING_SIZE_ERROR  -108 /**< Memory mapping size mismatch */
 
 /**
- * Helper function to get error description
- */
-const char* Ringbuf_strerror(int error_code);
-
-/**
  * Types of ring buffer
  * Underlying implementation is similar except for the blocked ring buffer (Not yet implementeded)
  * Each type has its own corresponding API functions
@@ -81,6 +76,11 @@ typedef int(*Pop_cb)(void *obj, void *args);
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/**
+ * Helper function to get error description
+ */
+const char* RingBuf_strerror(int error_code);
 
 /**
  * Spsc functions

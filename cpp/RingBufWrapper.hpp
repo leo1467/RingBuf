@@ -39,9 +39,9 @@ protected:
         = std::bind(Get_SpscRingBuf, _1, _2, _3, _4, _5);
     inline static std::function<void(SpscRingBuf_t*)> DelRing
         = std::bind(Del_SpscRingBuf, _1);
-    inline static std::function<size_t(SpscRingBuf_t*, void *)> Push
+    inline static std::function<ssize_t(SpscRingBuf_t*, void *)> Push
         = std::bind(Push_SpscRingBuf, _1, _2);
-    inline static std::function<size_t(SpscRingBuf_t*, void *)> Pop
+    inline static std::function<ssize_t(SpscRingBuf_t*, void *)> Pop
         = std::bind(Pop_SpscRingBuf, _1, _2);
 };
 
@@ -53,11 +53,11 @@ protected:
         = std::bind(&Get_MpscRingBuf, _1, _2, _3, _4, _5);
     inline static std::function<void(MpscRingBuf_t*)> DelRing
         = std::bind(Del_MpscRingBuf, _1);
-    inline static std::function<size_t(MpscRingBuf_t*, void *)> Push
+    inline static std::function<ssize_t(MpscRingBuf_t*, void *)> Push
         = std::bind(Push_MpscRingBuf, _1, _2);
-    inline static std::function<size_t(MpscRingBuf_t*, void *)> Pop
+    inline static std::function<ssize_t(MpscRingBuf_t*, void *)> Pop
         = std::bind(Pop_MpscRingBuf, _1, _2);
-    inline static std::function<size_t(MpscRingBuf_t*, void *)> Try_Push
+    inline static std::function<ssize_t(MpscRingBuf_t*, void *)> Try_Push
         = std::bind(Try_push_MpscRingBuf, _1, _2);
     inline static std::function<int(MpscRingBuf_t*, Pop_cb, void *args)> Pop_w_cb
         = std::bind(Pop_w_cb_MpscRingBuf, _1, _2, _3);
@@ -71,9 +71,9 @@ protected:
         = std::bind(&Get_MpmcRingBuf, _1, _2, _3, _4, _5);
     inline static std::function<void(MpmcRingBuf_t*)> DelRing
         = std::bind(Del_MpmcRingBuf, _1);
-    inline static std::function<size_t(MpmcRingBuf_t*, void *)> Push
+    inline static std::function<ssize_t(MpmcRingBuf_t*, void *)> Push
         = std::bind(Try_push_MpmcRingBuf, _1, _2);
-    inline static std::function<size_t(MpmcRingBuf_t*, void *)> Pop
+    inline static std::function<ssize_t(MpmcRingBuf_t*, void *)> Pop
         = std::bind(Try_pop_MpmcMpscRingBuf, _1, _2);
     inline static std::function<int(MpmcRingBuf_t*, Pop_cb, void *args)> Pop_w_cb
         = std::bind(Pop_w_cb_MpmcRingBuf, _1, _2, _3);
@@ -98,14 +98,14 @@ public:
     }
 
     template<typename T>
-    size_t Push(T &&obj) noexcept
+    ssize_t Push(T &&obj) noexcept
     {
         static_assert(std::is_same_v<std::decay_t<T>, Obj>, "Push incorrect object type");
         return Base::Push(r, reinterpret_cast<void *>(&obj));
     }
 
     template<typename T>
-    size_t Pop(T &obj) noexcept
+    ssize_t Pop(T &obj) noexcept
     {
         return Base::Pop(r, reinterpret_cast<void *>(&obj));
     }
@@ -149,9 +149,14 @@ public:
     }
 
     template<typename R = RingType>
-    auto Pop_MpmcMpscRingBuf(Obj &obj) noexcept -> std::enable_if_t<std::is_same_v<R, RingBufType::Mpmc>, size_t>
+    auto Pop_MpmcMpscRingBuf(Obj &obj) noexcept -> std::enable_if_t<std::is_same_v<R, RingBufType::Mpmc>, ssize_t>
     {
         return Try_pop_MpmcMpscRingBuf(r, reinterpret_cast<void *>(&obj));
+    }
+
+    const char *Get_RingBuf_strerror(int err) noexcept
+    {
+        return const_cast<char *>(RingBuf_strerror(err));
     }
 
     int Init(const char *shmPath, int prot, int flag)
@@ -159,10 +164,9 @@ public:
         static_assert((ObjNum >= 2) && ((ObjNum & (ObjNum - 1)) == 0), "ObjNum need to be power of 2");
         static_assert(is_one_of_v<RingType, RingBufType::Spsc, RingBufType::Mpsc, RingBufType::Mpmc>, "RingType wrong");
         r = Base::GetRing(ObjNum, sizeof(Obj), shmPath, prot, flag);
-        my_assert(r, "Ring Buf nullptr, check prot");
         p = std::shared_ptr<typename Base::type>(r, dter());
 
-        return 0;
+        return errno;
     }
 
     explicit RingBuf(const char *shmPath, int prot, int flag)

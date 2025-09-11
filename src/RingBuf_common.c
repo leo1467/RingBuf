@@ -19,7 +19,8 @@ typedef struct _SizeInfo {
     size_t total_size;
 } SizeInfo_t;
 
-const char* Ringbuf_strerror(int error_code) {
+const char* RingBuf_strerror(int error_code)
+{
     switch (error_code) {
         case RINGBUF_SUCCESS:               return "Success";
         case RINGBUF_FULL:                  return "Ring buffer is full";
@@ -110,12 +111,11 @@ static void *get_buf_shm(size_t totalSz, int *fd, int prot, const char *shmPath,
         if (fstat(*fd, &st) == -1) {
             return NULL;
         }
-        if (st.st_size < 0) {
+        if (st.st_size == 0) {
             errno = RINGBUF_MAPPING_NOT_EXITS;
             return NULL;
         }
         if ((size_t)st.st_size != totalSz) {
-            fprintf(stderr, "producer not start yet\n");
             errno = RINGBUF_MAPPING_SIZE_ERROR;  
             return NULL;
         }
