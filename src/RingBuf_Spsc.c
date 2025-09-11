@@ -58,9 +58,9 @@ void End_pop_SpscRingBuf(SpscRingBuf_t *p)
 }
 
 #if DEBUG
-size_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o)
+ssize_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o)
 #else
-size_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args)
+ssize_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args)
 #endif
 {
     RingBuf_t *r = (RingBuf_t *) p;
@@ -77,7 +77,7 @@ size_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args)
     return curr_head;
 }
 
-size_t Pop_SpscRingBuf(SpscRingBuf_t *p, void *buf)
+ssize_t Pop_SpscRingBuf(SpscRingBuf_t *p, void *buf)
 {
     RingBuf_t *r = (RingBuf_t *) p;
     const size_t curr_head = atomic_load_explicit(&r->head_, memory_order_acquire);

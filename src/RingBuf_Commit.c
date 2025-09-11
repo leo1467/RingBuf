@@ -19,9 +19,9 @@ void Del_MpscRingBuf(MpscRingBuf_t *p)
 }
 
 #if DEBUG
-size_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o)
+ssize_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o)
 #else
-size_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args)
+ssize_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args)
 #endif
 {
     RingBuf_t *r = (RingBuf_t *) p;
@@ -41,9 +41,9 @@ size_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args)
 }
 
 #if DEBUG
-size_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o)
+ssize_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o)
 #else
-size_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args)
+ssize_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args)
 #endif
 {
     RingBuf_t *r = (RingBuf_t *) p;
@@ -53,7 +53,8 @@ size_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args)
     for (;;) {
         size_t curr_tail = atomic_load_explicit(&r->tail_, memory_order_acquire);
         if (expected_head - curr_tail >= r->objNum_) {
-            return -1;
+            errno = RINGBUF_FULL;
+            return errno;
         }
         if (atomic_compare_exchange_weak_explicit(&r->head_, &expected_head, expected_head + 1, memory_order_acq_rel, memory_order_relaxed)) {
             break;
@@ -72,13 +73,14 @@ size_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args)
     return expected_head;
 }
 
-size_t Pop_MpscRingBuf(MpscRingBuf_t *p, void *buf)
+ssize_t Pop_MpscRingBuf(MpscRingBuf_t *p, void *buf)
 {
     RingBuf_t *r = (RingBuf_t *) p;
     const size_t curr_commit = atomic_load_explicit(&r->commit_, memory_order_acquire);
     const size_t curr_tail = atomic_load_explicit(&r->tail_, memory_order_relaxed);
     if (curr_tail == curr_commit) {
-        return -1;
+        errno = RINGBUF_EMPTY;
+        return errno;
     }
     const size_t idx = curr_tail & r->mask_;
     memcpy(buf, &r->buffer_[idx * r->objSize_], r->objSize_);
@@ -92,7 +94,8 @@ int Pop_w_cb_MpscRingBuf(MpscRingBuf_t *p, Pop_cb cb, void *args)
     const size_t curr_commit = atomic_load_explicit(&r->commit_, memory_order_acquire);
     const size_t curr_tail = atomic_load_explicit(&r->tail_, memory_order_relaxed);
     if (curr_tail == curr_commit) {
-        return -1;
+        errno = RINGBUF_EMPTY;
+        return errno;
     }
     const size_t idx = curr_tail & r->mask_;
     int rc = cb(&r->buffer_[idx * r->objSize_], args);

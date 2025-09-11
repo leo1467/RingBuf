@@ -1,8 +1,14 @@
 #pragma once
+#include <errno.h>
 #include "RingBuf_public.h"
 
 #define CACHE_LINE_SIZE 64
 #define RETRY_NUM 64
+
+/**
+ * Macro to set errno and return error code
+ */
+#define RINGBUF_SET_ERROR(err) do { errno = (err); return (err); } while(0)
 
 enum RingBufSlot {
     USE_SLOT = 1 << 0,
@@ -23,10 +29,11 @@ typedef struct _RingBuf {
     size_t objNum_;
     size_t mask_;
     size_t totalSize_;
+    int mapType_;
     int fd;
     char *buffer_;
     atomic_size_t *slot_;
-    char pad3[CACHE_LINE_SIZE - sizeof(size_t) * 4 - sizeof(int) - sizeof(atomic_size_t *) - sizeof(char *)];
+    char pad3[CACHE_LINE_SIZE - sizeof(size_t) * 4 - sizeof(int) * 2 - sizeof(char *) - sizeof(atomic_size_t *)];
 } __attribute__((__aligned__(CACHE_LINE_SIZE))) RingBuf_t;
 
 RingBuf_t *get_buf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag, int useSlot);

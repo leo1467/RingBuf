@@ -28,6 +28,25 @@ typedef void (*testFunc)(Time_diff_t *arr, size_t pushed, char buf[], Obj *o);
 #endif
 
 /**
+ * RingBuf specific return values
+ * Negative values indicate errors, positive values indicate success with additional info
+ */
+#define RINGBUF_SUCCESS              0   /**< Operation successful */
+#define RINGBUF_FULL                -100 /**< Ring buffer is full */
+#define RINGBUF_EMPTY               -101 /**< Ring buffer is empty */
+#define RINGBUF_CONTENTION          -103 /**< High contention, retry suggested */
+#define RINGBUF_INVALID_PARAM       -104 /**< Invalid parameters */
+#define RINGBUF_NO_MAPPING_TYPE     -105 /**< No mapping type specified */
+#define RINGBUF_CAPACITY_WRONG      -106 /**< Capacity is not the power of two */
+#define RINGBUF_MAPPING_NOT_EXITS   -107 /**< Use MAP_EXIST but memory mapping does not exist */
+#define RINGBUF_MAPPING_SIZE_ERROR  -108 /**< Memory mapping size mismatch */
+
+/**
+ * Helper function to get error description
+ */
+const char* Ringbuf_strerror(int error_code);
+
+/**
  * Types of ring buffer
  * Underlying implementation is similar except for the blocked ring buffer (Not yet implementeded)
  * Each type has its own corresponding API functions
@@ -121,7 +140,7 @@ void *Begin_pop_SpscRingBuf(SpscRingBuf_t *p);
 void End_pop_SpscRingBuf(SpscRingBuf_t *p);
 
 #if DEBUG
-size_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o);
+ssize_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o);
 #else
 /**
  * Push memory into ring buffer
@@ -133,7 +152,7 @@ size_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *
  * 
  * Return the head index where data was pushed
  */
-size_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args);
+ssize_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args);
 #endif
 
 /**
@@ -146,7 +165,7 @@ size_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args);
  * 
  * Return the tail index where data was popped, -1 if empty
  */
-size_t Pop_SpscRingBuf(SpscRingBuf_t *p, void *buf);
+ssize_t Pop_SpscRingBuf(SpscRingBuf_t *p, void *buf);
 
 /**
  * Not yet implemented
@@ -158,7 +177,7 @@ size_t Pop_SpscRingBuf(SpscRingBuf_t *p, void *buf);
  *
  * Retrun the number of objs popped
  */
-size_t Batch_pop_SpscRingBuf(SpscRingBuf_t *p, void *buf, size_t max_num);
+ssize_t Batch_pop_SpscRingBuf(SpscRingBuf_t *p, void *buf, size_t max_num);
 
 bool Is_empty_SpscRingBuf(SpscRingBuf_t *p);
 bool Is_full_SpscRingBuf(SpscRingBuf_t *p);
@@ -191,8 +210,8 @@ MpscRingBuf_t *Get_MpscRingBuf(const size_t objNum, const size_t objSize, const 
 void Del_MpscRingBuf(MpscRingBuf_t *p);
 
 #if DEBUG
-size_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o);
-size_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o);
+ssize_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o);
+ssize_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o);
 #else
 /**
  * Push memory into ring buffer
@@ -205,7 +224,7 @@ size_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args, testFunc cb, Time_diff
  * 
  * Return the head index where data was pushed
  */
-size_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args);
+ssize_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args);
 
 /**
  * Push memory into ring buffer
@@ -216,7 +235,7 @@ size_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args);
  * 
  * Return the head index where data was pushed, -1 if full or contention
  */
-size_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args);
+ssize_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args);
 #endif
 
 /**
@@ -227,7 +246,7 @@ size_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args);
  * 
  * Return the tail where been popped, -1 if empty
  */
-size_t Pop_MpscRingBuf(MpscRingBuf_t *p, void *buf);
+ssize_t Pop_MpscRingBuf(MpscRingBuf_t *p, void *buf);
 
 /**
  * Execute callback immediately after getting the avalible mem in ring buffer
@@ -250,7 +269,7 @@ int Pop_w_cb_MpscRingBuf(MpscRingBuf_t *p, Pop_cb cb, void *args);
  *
  * Retrun the number of objs popped
  */
-size_t Batch_pop_MpscRingBuf(MpscRingBuf_t *p, void *buf, size_t max_num);
+ssize_t Batch_pop_MpscRingBuf(MpscRingBuf_t *p, void *buf, size_t max_num);
 
 bool Is_empty_MpscRingBuf(MpscRingBuf_t *p);
 bool Is_full_MpscRingBuf(MpscRingBuf_t *p);
@@ -284,7 +303,7 @@ MpmcRingBuf_t *Get_MpmcRingBuf(const size_t objNum, const size_t objSize, const 
 void Del_MpmcRingBuf(MpmcRingBuf_t *p);
 
 #if DEBUG
-size_t Try_push_MpmcRingBuf(MpmcRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o);
+ssize_t Try_push_MpmcRingBuf(MpmcRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o);
 #else
 /**
  * Push memory into ring buffer, producers don't blocked from each other
@@ -294,7 +313,7 @@ size_t Try_push_MpmcRingBuf(MpmcRingBuf_t *p, void *args, testFunc cb, Time_diff
  * 
  * Return the head index where data was pushed, -1 if full or contention
  */
-size_t Try_push_MpmcRingBuf(MpmcRingBuf_t *p, void *args);
+ssize_t Try_push_MpmcRingBuf(MpmcRingBuf_t *p, void *args);
 #endif
 
 /**
@@ -305,7 +324,7 @@ size_t Try_push_MpmcRingBuf(MpmcRingBuf_t *p, void *args);
  * 
  * Return the tail index where data was popped, -1 if empty or contention
  */
-size_t Try_pop_MpmcRingBuf(MpmcRingBuf_t *p, void *buf);
+ssize_t Try_pop_MpmcRingBuf(MpmcRingBuf_t *p, void *buf);
 
 /**
  * Execute callback immediately after getting the avalible mem in ring buffer
@@ -326,7 +345,7 @@ int Pop_w_cb_MpmcRingBuf(MpmcRingBuf_t *p, Pop_cb cb, void *args);
  * 
  * Return the tail index where data was popped, -1 if empty or contention. Only safe for single consumer (MPSC) use.
  */
-size_t Try_pop_MpmcMpscRingBuf(MpmcRingBuf_t *p, void *buf);
+ssize_t Try_pop_MpmcMpscRingBuf(MpmcRingBuf_t *p, void *buf);
 
 #ifdef __cplusplus
 }

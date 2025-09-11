@@ -3,6 +3,7 @@
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -17,6 +18,21 @@ typedef struct _SizeInfo {
     size_t slot_off_e;
     size_t total_size;
 } SizeInfo_t;
+
+const char* Ringbuf_strerror(int error_code) {
+    switch (error_code) {
+        case RINGBUF_SUCCESS:               return "Success";
+        case RINGBUF_FULL:                  return "Ring buffer is full";
+        case RINGBUF_EMPTY:                 return "Ring buffer is empty";
+        case RINGBUF_CONTENTION:            return "High contention, retry suggested";
+        case RINGBUF_INVALID_PARAM:         return "Invalid parameters";
+        case RINGBUF_NO_MAPPING_TYPE:       return "No mapping type specified";
+        case RINGBUF_CAPACITY_WRONG:        return "Capacity must be the power of two and >= 2";
+        case RINGBUF_MAPPING_NOT_EXITS:     return "Use MAP_EXIST but memory mapping does not exist";
+        case RINGBUF_MAPPING_SIZE_ERROR:    return "Mapping size mismatch";
+        default:                            return strerror(errno);
+    }
+}
 
 __attribute__((always_inline)) inline
 static size_t get_aligned_offset(size_t base_offset, size_t alignment)
@@ -54,10 +70,10 @@ static void *get_buf_malloc(size_t totalSz, int *fd)
     void *p = NULL;
     p = malloc(totalSz);
     if (!p) {
-        perror("malloc");
+        errno = ENOMEM;
         return NULL;
     }
-    *fd = -999;
+    *fd = -9999;
 
     return p;
 }
@@ -68,7 +84,7 @@ static void *get_buf_shm(size_t totalSz, int *fd, int prot, const char *shmPath,
     void *p = NULL;
 
     if (!needNew && !shmPath) {
-        fprintf(stderr, "MAP_EXIST need shm path\n");
+        errno = RINGBUF_INVALID_PARAM;
         return NULL;
     }
 
@@ -81,35 +97,32 @@ static void *get_buf_shm(size_t totalSz, int *fd, int prot, const char *shmPath,
         *fd = memfd_create("ringBuf", MFD_CLOEXEC);
     }
     if (*fd < 0) {
-        perror("open or memfd_create");
         return NULL;
     }
 
     if (needNew) {
         rc = ftruncate(*fd, totalSz);
         if (rc < 0) {
-            perror("ftruncate");
             return NULL;
         }
     } else if (prot & MAP_EXIST) {
         struct stat st;
         if (fstat(*fd, &st) == -1) {
-            perror("fstat");
             return NULL;
         }
         if (st.st_size < 0) {
-            fprintf(stderr, "struct stat::st_size < 0\n");
+            errno = RINGBUF_MAPPING_NOT_EXITS;
             return NULL;
         }
         if ((size_t)st.st_size != totalSz) {
             fprintf(stderr, "producer not start yet\n");
+            errno = RINGBUF_MAPPING_SIZE_ERROR;  
             return NULL;
         }
     }
 
     p = mmap(NULL, totalSz, PROT_READ | PROT_WRITE, MAP_SHARED, *fd, 0);
     if (p == MAP_FAILED) {
-        perror("mmap");
         close(*fd);
         return NULL;
     }
@@ -120,7 +133,11 @@ static void *get_buf_shm(size_t totalSz, int *fd, int prot, const char *shmPath,
 RingBuf_t *get_buf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag, int useSlot)
 {
     /* 物件數量只能是2的冪次才能index到正確的位置 */
-    assert((objNum >= 2) && ((objNum & (objNum - 1)) == 0));
+    // assert((objNum >= 2) && ((objNum & (objNum - 1)) == 0));
+    if (objNum < 2 && ((objNum & (objNum - 1)) != 0)) {
+        errno = RINGBUF_CAPACITY_WRONG;
+        return NULL;
+    }
 
     SizeInfo_t info = get_total_size(objNum, objSize, useSlot);
 
@@ -128,7 +145,7 @@ RingBuf_t *get_buf(const size_t objNum, const size_t objSize, const char *shmPat
     void *p = NULL;
 
     if (!(prot & (MAP_MALLOC | MAP_SHM))) {
-        fprintf(stderr, "Prot need MAP_SHM or MAP_MALLOC\n");
+        errno = RINGBUF_NO_MAPPING_TYPE;
         return NULL;
     }
 
@@ -156,6 +173,7 @@ RingBuf_t *get_buf(const size_t objNum, const size_t objSize, const char *shmPat
         r->objNum_ = objNum;
         r->mask_ = objNum - 1;
         r->totalSize_ = info.total_size;
+        r->mapType_ = useMalloc ? MAP_MALLOC : MAP_SHM;
         r->fd = fd;
         r->buffer_ = (char *)p + info.buf_off_s;
         if (useSlot & USE_SLOT) {
@@ -178,13 +196,10 @@ void del_buf(RingBuf_t *r)
         return;
     }
 
-    if (r->fd >= 0) {
+    if (r->mapType_ == MAP_SHM) {
         close(r->fd);
-    }
-
-    if (r->fd >= 0 && r) {
         munmap(r, r->totalSize_);
-    } else if (r->fd == -999) {
+    } else if (r->mapType_ == MAP_MALLOC) {
         free(r);
     }
 }

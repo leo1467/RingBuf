@@ -19,9 +19,9 @@ void Del_MpmcRingBuf(MpmcRingBuf_t *p)
 }
 
 #if DEBUG
-size_t Try_push_MpmcRingBuf(MpmcRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o)
+ssize_t Try_push_MpmcRingBuf(MpmcRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o)
 #else
-size_t Try_push_MpmcRingBuf(MpmcRingBuf_t *p, void *args)
+ssize_t Try_push_MpmcRingBuf(MpmcRingBuf_t *p, void *args)
 #endif
 {
     RingBuf_t *r = (RingBuf_t *) p;
@@ -49,16 +49,20 @@ size_t Try_push_MpmcRingBuf(MpmcRingBuf_t *p, void *args)
         // CAS 失敗，pos 已被其他 producer 更新，重試
         } else if (dif < 0) {
             // seq < pos，代表 queue 滿了
-            return -1;
+            errno = RINGBUF_FULL;
+            return errno;
         } else {
             // 其他 producer/consumer 尚未完成，稍後重試
             cpu_relax();
-            if (++spin > RETRY_NUM) return -1;
+            if (++spin > RETRY_NUM) {
+                errno = RINGBUF_CONTENTION;
+                return errno;
+            }
         }
     }
 }
 
-size_t Try_pop_MpmcRingBuf(MpmcRingBuf_t *p, void *buf)
+ssize_t Try_pop_MpmcRingBuf(MpmcRingBuf_t *p, void *buf)
 {
     RingBuf_t *r = (RingBuf_t *) p;
     unsigned spin = 0;
@@ -79,11 +83,15 @@ size_t Try_pop_MpmcRingBuf(MpmcRingBuf_t *p, void *buf)
         // CAS 失敗，pos 已被其他 consumer 更新，重試
         } else if (dif < 0) {
             // seq < pos+1，代表 queue 為空
-            return -1;
+            errno = RINGBUF_EMPTY;
+            return errno;
         } else {
             // 其他 producer 尚未 publish，稍後重試
             cpu_relax();
-            if (++spin > RETRY_NUM) return -1;
+            if (++spin > RETRY_NUM) {
+                errno = RINGBUF_CONTENTION;
+                return errno;
+            }
         }
     }
 }
@@ -109,28 +117,34 @@ int Pop_w_cb_MpmcRingBuf(MpmcRingBuf_t *p, Pop_cb cb, void *args)
         // CAS 失敗，pos 已被其他 consumer 更新，重試
         } else if (dif < 0) {
             // seq < pos+1，代表 queue 為空
-            return -1;
+            errno = RINGBUF_EMPTY;
+            return errno;
         } else {
             // 其他 producer 尚未 publish，稍後重試
             cpu_relax();
-            if (++spin > RETRY_NUM) return -1;
+            if (++spin > RETRY_NUM) {
+                errno = RINGBUF_CONTENTION;
+                return errno;
+            }
         }
     }
 }
 
-size_t Try_pop_MpmcMpscRingBuf(MpmcRingBuf_t *p, void *buf)
+ssize_t Try_pop_MpmcMpscRingBuf(MpmcRingBuf_t *p, void *buf)
 {
     RingBuf_t *r = (RingBuf_t *) p;
     const size_t curr_head = atomic_load_explicit(&r->head_, memory_order_acquire);
     const size_t curr_tail = atomic_load_explicit(&r->tail_, memory_order_relaxed);
     if  (curr_head - curr_tail == 0) {
-        return -1;
+        errno = RINGBUF_EMPTY;
+        return errno;
     }
 
     const size_t expected_signal = curr_tail + 1;
     const size_t idx = curr_tail & r->mask_;
     if (atomic_load_explicit(&r->slot_[idx], memory_order_acquire) != expected_signal) {
-        return -1; 
+        errno = RINGBUF_CONTENTION;
+        return errno; 
     }
 
     memcpy(buf, &r->buffer_[idx * r->objSize_], r->objSize_);
