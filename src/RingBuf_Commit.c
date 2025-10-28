@@ -32,7 +32,7 @@ ssize_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args)
 #if DEBUG
     cb(arr, curr_head, buf, o);
 #endif
-    memcpy(&r->buffer_[(curr_head & r->mask_) * r->objSize_], args, r->objSize_);
+    memcpy(&GET_BUFFER(r)[(curr_head & r->mask_) * r->objSize_], args, r->objSize_);
     while (atomic_load_explicit(&r->commit_, memory_order_relaxed) != curr_head) {
         cpu_relax();
     }
@@ -65,7 +65,7 @@ ssize_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args)
     cb(arr, expected_head, buf, o);
 #endif
     const size_t idx = expected_head & r->mask_;
-    memcpy(&r->buffer_[idx * r->objSize_], args, r->objSize_);
+    memcpy(&GET_BUFFER(r)[idx * r->objSize_], args, r->objSize_);
     while (atomic_load_explicit(&r->commit_, memory_order_relaxed) != expected_head) {
         cpu_relax();
     }
@@ -83,7 +83,7 @@ ssize_t Pop_MpscRingBuf(MpscRingBuf_t *p, void *buf)
         return errno;
     }
     const size_t idx = curr_tail & r->mask_;
-    memcpy(buf, &r->buffer_[idx * r->objSize_], r->objSize_);
+    memcpy(buf, &GET_BUFFER(r)[idx * r->objSize_], r->objSize_);
     atomic_store_explicit(&r->tail_, curr_tail + 1, memory_order_release);
     return curr_tail;
 }
@@ -98,7 +98,7 @@ int Pop_w_cb_MpscRingBuf(MpscRingBuf_t *p, Pop_cb cb, void *args)
         return errno;
     }
     const size_t idx = curr_tail & r->mask_;
-    int rc = cb(&r->buffer_[idx * r->objSize_], args);
+    int rc = cb(&GET_BUFFER(r)[idx * r->objSize_], args);
     atomic_store_explicit(&r->tail_, curr_tail + 1, memory_order_release);
     return rc;
 }

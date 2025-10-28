@@ -5,7 +5,11 @@
 
 /* Platform-specific CPU pause/yield for spin-wait loops */
 #if defined(__x86_64__) || defined(__i386__)
-#define cpu_relax() __builtin_ia32_pause()
+/* Use inline assembly for better AMD compatibility */
+#define cpu_relax() __asm__ __volatile__("pause" ::: "memory")
+#elif defined(__aarch64__) || defined(__arm__)
+/* ARM yield instruction for spin-wait loops */
+#define cpu_relax() __asm__ __volatile__("yield" ::: "memory")
 #else
 #define cpu_relax() do {} while (0)
 #endif

@@ -28,7 +28,7 @@ void *Begin_push_SpscRingBuf(SpscRingBuf_t *p)
         return NULL;
     }
     const size_t idx = curr_head & r->mask_;
-    return &r->buffer_[idx * r->objSize_];
+    return &GET_BUFFER(r)[idx * r->objSize_];
 }
 
 void End_push_SpscRingBuf(SpscRingBuf_t *p)
@@ -47,7 +47,7 @@ void *Begin_pop_SpscRingBuf(SpscRingBuf_t *p)
         return NULL;
     }
     const size_t idx = curr_tail & r->mask_;
-    return &r->buffer_[idx * r->objSize_];
+    return &GET_BUFFER(r)[idx * r->objSize_];
 }
 
 void End_pop_SpscRingBuf(SpscRingBuf_t *p)
@@ -72,7 +72,7 @@ ssize_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args)
     cb(arr, curr_head, buf, o);
 #endif
     const size_t idx = curr_head & r->mask_;
-    memcpy(&r->buffer_[idx * r->objSize_], args, r->objSize_);
+    memcpy(&GET_BUFFER(r)[idx * r->objSize_], args, r->objSize_);
     atomic_store_explicit(&r->head_, curr_head + 1, memory_order_release);
     return curr_head;
 }
@@ -86,7 +86,7 @@ ssize_t Pop_SpscRingBuf(SpscRingBuf_t *p, void *buf)
         return -1;
     }
     const size_t idx = curr_tail & r->mask_;
-    memcpy(buf, &r->buffer_[idx * r->objSize_], r->objSize_);
+    memcpy(buf, &GET_BUFFER(r)[idx * r->objSize_], r->objSize_);
     atomic_store_explicit(&r->tail_, curr_tail + 1, memory_order_release);
     return curr_tail;
 }

@@ -175,15 +175,15 @@ RingBuf_t *get_buf(const size_t objNum, const size_t objSize, const char *shmPat
         r->totalSize_ = info.total_size;
         r->mapType_ = useMalloc ? MAP_MALLOC : MAP_SHM;
         r->fd = fd;
-        r->buffer_ = (char *)p + info.buf_off_s;
+        r->buffer_offset_ = info.buf_off_s;
         if (useSlot & USE_SLOT) {
-            r->slot_ = (atomic_size_t *)((char *)p + info.slot_off_s);
+            r->slot_offset_ = info.slot_off_s;
             for (size_t i = 0; i < r->objNum_; ++i) {
                 // 初始化 slot 為 i，因為初始狀態下，slot i 可供寫入
-                atomic_store_explicit(&r->slot_[i], i, memory_order_release);
+                atomic_store_explicit(&GET_SLOT(r)[i], i, memory_order_release);
             }
         } else if (useSlot & NO_SLOT) {
-            r->slot_ = NULL;
+            // r->slot_offset_ is not used when NO_SLOT;
         }
     }
 

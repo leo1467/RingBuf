@@ -31,10 +31,14 @@ typedef struct _RingBuf {
     size_t totalSize_;
     int mapType_;
     int fd;
-    char *buffer_;
-    atomic_size_t *slot_;
-    char pad3[CACHE_LINE_SIZE - sizeof(size_t) * 4 - sizeof(int) * 2 - sizeof(char *) - sizeof(atomic_size_t *)];
+    size_t buffer_offset_;
+    size_t slot_offset_;
+    char pad3[CACHE_LINE_SIZE - sizeof(size_t) * 4 - sizeof(int) * 2 - sizeof(size_t) * 2];
 } __attribute__((__aligned__(CACHE_LINE_SIZE))) RingBuf_t;
 
 RingBuf_t *get_buf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag, int useSlot);
 void del_buf(RingBuf_t *r);
+
+// Helper macros to get actual pointers from offsets
+#define GET_BUFFER(r) ((char *)(r) + (r)->buffer_offset_)
+#define GET_SLOT(r) ((atomic_size_t *)((char *)(r) + (r)->slot_offset_))

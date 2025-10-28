@@ -30,7 +30,7 @@ ssize_t Try_push_MpmcRingBuf(MpmcRingBuf_t *p, void *args)
     for (;;) {
         size_t expected_head = atomic_load_explicit(&r->head_, memory_order_relaxed); // 取得目前 head（生產者預約的序號
         size_t idx = expected_head & r->mask_;
-        size_t seq = atomic_load_explicit(&r->slot_[idx], memory_order_acquire); // 讀取 slot 的 sequence number
+        size_t seq = atomic_load_explicit(&GET_SLOT(r)[idx], memory_order_acquire); // 讀取 slot 的 sequence number
 
         /* seq - pos == 0 代表這格是空的，因為 consumer 讀完之後會把 seq 設為 pos + objNum
          * producer 繞了一圈會回到這格之後，看到 slot 裡面是 pos + objNum，代表可以寫入 */
@@ -42,8 +42,8 @@ ssize_t Try_push_MpmcRingBuf(MpmcRingBuf_t *p, void *args)
 #if DEBUG
                 cb(arr, expected_head, buf, (Obj *)args);
 #endif
-                memcpy(&r->buffer_[idx * r->objSize_], args, r->objSize_);
-                atomic_store_explicit(&r->slot_[idx], expected_head + 1, memory_order_release); // 發佈：將 slot 的 seq 設為 pos+1，表示這格已經填好可被消費
+                memcpy(&GET_BUFFER(r)[idx * r->objSize_], args, r->objSize_);
+                atomic_store_explicit(&GET_SLOT(r)[idx], expected_head + 1, memory_order_release); // 發佈：將 slot 的 seq 設為 pos+1，表示這格已經填好可被消費
                 return expected_head;
             }
         // CAS 失敗，pos 已被其他 producer 更新，重試
@@ -70,14 +70,14 @@ ssize_t Try_pop_MpmcRingBuf(MpmcRingBuf_t *p, void *buf)
     for (;;) {
         size_t expected_tail = atomic_load_explicit(&r->tail_, memory_order_relaxed); // 取得目前 tail（消費者預約的序號）
         size_t idx = expected_tail & r->mask_;
-        size_t seq = atomic_load_explicit(&r->slot_[idx], memory_order_acquire); // 讀取 slot 的 sequence number
+        size_t seq = atomic_load_explicit(&GET_SLOT(r)[idx], memory_order_acquire); // 讀取 slot 的 sequence number
         intptr_t dif = (intptr_t)seq - (intptr_t)(expected_tail + 1); // seq - (pos+1) == 0 代表這格有資料可讀
 
         if (dif == 0) {
             size_t desired = expected_tail + 1; // 嘗試用 CAS 保留這個 slot（tail_ 前進）
             if (atomic_compare_exchange_weak_explicit(&r->tail_, &expected_tail, desired, memory_order_acq_rel, memory_order_relaxed)) {
-                memcpy(buf, &r->buffer_[idx * r->objSize_], r->objSize_);
-                atomic_store_explicit(&r->slot_[idx], expected_tail + r->objNum_, memory_order_release); // 標記 slot 為 empty，設 seq = pos + objNum，供下一輪 producer 使用
+                memcpy(buf, &GET_BUFFER(r)[idx * r->objSize_], r->objSize_);
+                atomic_store_explicit(&GET_SLOT(r)[idx], expected_tail + r->objNum_, memory_order_release); // 標記 slot 為 empty，設 seq = pos + objNum，供下一輪 producer 使用
                 return expected_tail;
             }
         // CAS 失敗，pos 已被其他 consumer 更新，重試
@@ -104,14 +104,14 @@ int Pop_w_cb_MpmcRingBuf(MpmcRingBuf_t *p, Pop_cb cb, void *args)
     for (;;) {
         size_t pos = atomic_load_explicit(&r->tail_, memory_order_relaxed); // 取得目前 tail（消費者預約的序號）
         size_t idx = pos & r->mask_;
-        size_t seq = atomic_load_explicit(&r->slot_[idx], memory_order_acquire); // 讀取 slot 的 sequence number
+        size_t seq = atomic_load_explicit(&GET_SLOT(r)[idx], memory_order_acquire); // 讀取 slot 的 sequence number
         intptr_t dif = (intptr_t)seq - (intptr_t)(pos + 1); // seq - (pos+1) == 0 代表這格有資料可讀
 
         if (dif == 0) {
             size_t desired = pos + 1; // 嘗試用 CAS 保留這個 slot（tail_ 前進）
             if (atomic_compare_exchange_weak_explicit(&r->tail_, &pos, desired, memory_order_acq_rel, memory_order_relaxed)) {
-                int rc = cb(&r->buffer_[idx * r->objSize_], args);
-                atomic_store_explicit(&r->slot_[idx], pos + r->objNum_, memory_order_release); // 標記 slot 為 empty，設 seq = pos + objNum，供下一輪 producer 使用
+                int rc = cb(&GET_BUFFER(r)[idx * r->objSize_], args);
+                atomic_store_explicit(&GET_SLOT(r)[idx], pos + r->objNum_, memory_order_release); // 標記 slot 為 empty，設 seq = pos + objNum，供下一輪 producer 使用
                 return rc;
             }
         // CAS 失敗，pos 已被其他 consumer 更新，重試
@@ -142,13 +142,13 @@ ssize_t Try_pop_MpmcMpscRingBuf(MpmcRingBuf_t *p, void *buf)
 
     const size_t expected_signal = curr_tail + 1;
     const size_t idx = curr_tail & r->mask_;
-    if (atomic_load_explicit(&r->slot_[idx], memory_order_acquire) != expected_signal) {
+    if (atomic_load_explicit(&GET_SLOT(r)[idx], memory_order_acquire) != expected_signal) {
         errno = RINGBUF_CONTENTION;
         return errno; 
     }
 
-    memcpy(buf, &r->buffer_[idx * r->objSize_], r->objSize_);
-    atomic_store_explicit(&r->slot_[idx], curr_tail + r->objNum_, memory_order_release);
+    memcpy(buf, &GET_BUFFER(r)[idx * r->objSize_], r->objSize_);
+    atomic_store_explicit(&GET_SLOT(r)[idx], curr_tail + r->objNum_, memory_order_release);
     atomic_store_explicit(&r->tail_, curr_tail + 1, memory_order_relaxed);
     return curr_tail;
 }
