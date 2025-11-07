@@ -98,6 +98,8 @@ inline constexpr bool is_one_of_v = (std::is_same_v<T, Options> || ...);
 
 template<typename RingType, typename Obj, size_t ObjNum>
 class RingBuf final : private RingBufTypeTrait<RingType> {
+    static_assert(is_one_of_v<RingType, RingBufType::Spsc, RingBufType::Mpsc, RingBufType::Mpmc, RingBufType::Blocked>, "RingType wrong");
+    static_assert((ObjNum >= 2) && ((ObjNum & (ObjNum - 1)) == 0), "ObjNum need to be power of 2");
     using Base = RingBufTypeTrait<RingType>;
 public:
     typename Base::type *Get_RingBuf() const noexcept
@@ -118,8 +120,8 @@ public:
         return Base::Pop(r, reinterpret_cast<void *>(&obj));
     }
 
-    template<typename R = RingType, typename Callable, typename... Args, std::enable_if_t<!std::is_function_v<std::remove_pointer_t<std::decay_t<Callable>>>, int> = 0>
-    int Pop_w_cb(Callable &&callback, Args&&... args) noexcept(noexcept(std::invoke(std::forward<Callable>(callback), std::declval<Obj*>(), std::forward<Args>(args)...)))
+    template<typename R = RingType, typename Callable, typename... Args, typename = std::enable_if_t<is_one_of_v<R, RingBufType::Mpsc, RingBufType::Mpmc, RingBufType::Spsc>>, std::enable_if_t<!std::is_function_v<std::remove_pointer_t<std::decay_t<Callable>>>, int> = 0>
+    auto Pop_w_cb(Callable &&callback, Args&&... args) noexcept(noexcept(std::invoke(std::forward<Callable>(callback), std::declval<Obj*>(), std::forward<Args>(args)...)))  
     {
         auto user_args_tuple = std::make_tuple(std::forward<Args>(args)...);
         struct TrampolineContext {
@@ -134,7 +136,7 @@ public:
             return rc;
         };
 
-        if constexpr (is_one_of_v<RingType, RingBufType::Mpsc, RingBufType::Mpmc>) {
+        if constexpr (is_one_of_v<R, RingBufType::Mpsc, RingBufType::Mpmc>) {
             return Base::Pop_w_cb(r, trampoline, &context);
         } else {
             Obj *p = reinterpret_cast<Obj *>(Begin_pop_SpscRingBuf(r));
@@ -144,8 +146,9 @@ public:
         }
     }
 
-    template<typename R = RingType>
-    auto Pop_w_cb(Pop_cb cb, void *args) noexcept -> std::enable_if_t<is_one_of_v<R, RingBufType::Mpsc, RingBufType::Mpmc, RingBufType::Spsc>, ssize_t>
+    // auto Pop_w_cb(Pop_cb cb, void *args) noexcept requires is_one_of_v<RingType, RingBufType::Mpsc, RingBufType::Mpmc, RingBufType::Spsc>
+    template<typename R = RingType, typename = std::enable_if_t<is_one_of_v<R, RingBufType::Mpsc, RingBufType::Mpmc, RingBufType::Spsc>>>
+    auto Pop_w_cb(Pop_cb cb, void *args) noexcept
     {
         if constexpr (is_one_of_v<R, RingBufType::Mpsc, RingBufType::Mpmc>) {
             return Base::Pop_w_cb(r, cb, args);
@@ -157,8 +160,9 @@ public:
         }
     }
 
-    template<typename R = RingType>
-    auto Pop_MpmcMpscRingBuf(Obj &obj) noexcept -> std::enable_if_t<std::is_same_v<R, RingBufType::Mpmc>, ssize_t>
+    // ssize_t Pop_MpmcMpscRingBuf(Obj &obj) noexcept requires std::is_same_v<RingType, RingBufType::Mpmc>
+    template<typename R = RingType, typename = std::enable_if_t<std::is_same_v<R, RingBufType::Mpmc>>>
+    ssize_t Pop_MpmcMpscRingBuf(Obj &obj) noexcept
     {
         return Try_pop_MpmcMpscRingBuf(r, reinterpret_cast<void *>(&obj));
     }
@@ -170,8 +174,6 @@ public:
 
     int Init(const char *shmPath, int prot, int flag)
     {
-        static_assert((ObjNum >= 2) && ((ObjNum & (ObjNum - 1)) == 0), "ObjNum need to be power of 2");
-        static_assert(is_one_of_v<RingType, RingBufType::Spsc, RingBufType::Mpsc, RingBufType::Mpmc, RingBufType::Blocked>, "RingType wrong");
         r = Base::GetRing(ObjNum, sizeof(Obj), shmPath, prot, flag);
         p = std::shared_ptr<typename Base::type>(r, dter());
 
