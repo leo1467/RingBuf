@@ -2,6 +2,8 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <time.h>
+#include <unistd.h>
 
 /* Platform-specific CPU pause/yield for spin-wait loops */
 #if defined(__x86_64__) || defined(__i386__)
@@ -350,6 +352,20 @@ int Pop_w_cb_MpmcRingBuf(MpmcRingBuf_t *p, Pop_cb cb, void *args);
  * Return the tail index where data was popped, -1 if empty or contention. Only safe for single consumer (MPSC) use.
  */
 ssize_t Try_pop_MpmcMpscRingBuf(MpmcRingBuf_t *p, void *buf);
+
+/**
+ * Blocked functions
+ */
+BlockedRingBuf_t *Get_BlockedRingBuf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag);
+void Del_BlockedRingBuf(BlockedRingBuf_t *r);
+
+#if DEBUG
+ssize_t Push_BlockedRingBuf(BlockedRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o);
+#else
+ssize_t Push_BlockedRingBuf(BlockedRingBuf_t *p, void *args);
+#endif
+
+ssize_t Pop_BlockedRingBuf(BlockedRingBuf_t *p, void *buf);
 
 #ifdef __cplusplus
 }

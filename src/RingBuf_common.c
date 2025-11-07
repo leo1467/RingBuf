@@ -203,3 +203,84 @@ void del_buf(RingBuf_t *r)
         free(r);
     }
 }
+
+BRingBuf_t *get_blocked_buf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag)
+{
+    /* 物件數量只能是2的冪次才能index到正確的位置 */
+    // assert((objNum >= 2) && ((objNum & (objNum - 1)) == 0));
+    if (objNum < 2 && ((objNum & (objNum - 1)) != 0)) {
+        errno = RINGBUF_CAPACITY_WRONG;
+        return NULL;
+    }
+
+    size_t totalSize = sizeof(BRingBuf_t) + objNum * objSize;
+
+    int fd = -1;
+    void *p = NULL;
+
+    if (!(prot & (MAP_MALLOC | MAP_SHM))) {
+        errno = RINGBUF_NO_MAPPING_TYPE;
+        return NULL;
+    }
+
+    bool useMalloc = !(prot & (MAP_MALLOC | MAP_SHM)) || (prot & MAP_MALLOC);
+    bool useSHM = !useMalloc;
+    bool needNew = true;
+
+    if (useMalloc) {
+        p = get_buf_malloc(totalSize, &fd);
+    } else if (useSHM) {
+        needNew = !(prot & MAP_EXIST);
+        p = get_buf_shm(totalSize, &fd, prot, shmPath, needNew);
+    }
+
+    if (!p) {
+        return NULL;
+    }
+    BRingBuf_t *r = p;
+    if (needNew) {
+        if (useSHM) {
+            pthread_mutexattr_t mattr;
+            pthread_mutexattr_init(&mattr);
+            pthread_mutexattr_setpshared(&mattr, PTHREAD_PROCESS_SHARED);
+            pthread_mutex_init(&r->mtx, &mattr);
+            pthread_mutexattr_destroy(&mattr);
+
+            pthread_condattr_t cattr;
+            pthread_condattr_init(&cattr);
+            pthread_condattr_setpshared(&cattr, PTHREAD_PROCESS_SHARED);
+            pthread_cond_init(&r->writeable, &cattr);
+            pthread_cond_init(&r->readable, &cattr);
+            pthread_condattr_destroy(&cattr);
+        } else {
+            pthread_mutex_init(&r->mtx, NULL);
+            pthread_cond_init(&r->writeable, NULL);
+            pthread_cond_init(&r->readable, NULL);
+        }
+        r->head_ = 0;
+        r->tail_ = 0;
+        r->objSize_ = objSize;
+        r->objNum_ = objNum;
+        r->mask_ = objNum - 1;
+        r->totalSize_ = totalSize;
+        r->mapType_ = useMalloc ? MAP_MALLOC : MAP_SHM;
+        r->fd = fd;
+    }
+    return r;
+}
+
+void del_blocked_buf(BRingBuf_t *r)
+{
+    if (r) {
+        pthread_mutex_destroy(&r->mtx);
+        pthread_cond_destroy(&r->writeable);
+        pthread_cond_destroy(&r->readable);
+
+        if (r->mapType_ == MAP_SHM) {
+            close(r->fd);
+            munmap(r, r->totalSize_);
+        } else if (r->mapType_ == MAP_MALLOC) {
+            free(r);
+        }
+    }
+}
