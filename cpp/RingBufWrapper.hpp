@@ -83,6 +83,14 @@ template<>
 class RingBufTypeTrait<RingBufType::Blocked> {
 protected:
     using type = BlockedRingBuf_t;
+    inline static std::function<BlockedRingBuf_t *(const size_t, const size_t, const char *, int, int)> GetRing 
+        = std::bind(Get_BlockedRingBuf, _1, _2, _3, _4, _5);
+    inline static std::function<void(BlockedRingBuf_t*)> DelRing
+        = std::bind(Del_BlockedRingBuf, _1);
+    inline static std::function<ssize_t(BlockedRingBuf_t*, void *)> Push
+        = std::bind(Push_BlockedRingBuf, _1, _2);
+    inline static std::function<ssize_t(BlockedRingBuf_t*, void *)> Pop
+        = std::bind(Pop_BlockedRingBuf, _1, _2);
 };
 
 template<typename T, typename... Options>
@@ -136,9 +144,10 @@ public:
         }
     }
 
-    int Pop_w_cb(Pop_cb cb, void *args) noexcept
+    template<typename R = RingType>
+    auto Pop_w_cb(Pop_cb cb, void *args) noexcept -> std::enable_if_t<is_one_of_v<R, RingBufType::Mpsc, RingBufType::Mpmc, RingBufType::Spsc>, ssize_t>
     {
-        if constexpr (is_one_of_v<RingType, RingBufType::Mpsc, RingBufType::Mpmc>) {
+        if constexpr (is_one_of_v<R, RingBufType::Mpsc, RingBufType::Mpmc>) {
             return Base::Pop_w_cb(r, cb, args);
         } else {
             void *p = Begin_pop_SpscRingBuf(r);
@@ -162,7 +171,7 @@ public:
     int Init(const char *shmPath, int prot, int flag)
     {
         static_assert((ObjNum >= 2) && ((ObjNum & (ObjNum - 1)) == 0), "ObjNum need to be power of 2");
-        static_assert(is_one_of_v<RingType, RingBufType::Spsc, RingBufType::Mpsc, RingBufType::Mpmc>, "RingType wrong");
+        static_assert(is_one_of_v<RingType, RingBufType::Spsc, RingBufType::Mpsc, RingBufType::Mpmc, RingBufType::Blocked>, "RingType wrong");
         r = Base::GetRing(ObjNum, sizeof(Obj), shmPath, prot, flag);
         p = std::shared_ptr<typename Base::type>(r, dter());
 
