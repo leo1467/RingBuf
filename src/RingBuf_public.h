@@ -356,16 +356,66 @@ ssize_t Try_pop_MpmcMpscRingBuf(MpmcRingBuf_t *p, void *buf);
 /**
  * Blocked functions
  */
+
+/**
+ * Generate Blocked ring buffer
+ * 
+ * @objNum : number of objs can be placed into ring buffer
+ * @objSize : size of obj instance
+ * @shmPath : path for file backend shared memory, 
+ *            will map to anonymous if not given
+ * @prot : Oring RingBufMappingType
+ * @flag : Not yet implemented
+ * 
+ * Return the addr of ring buffer
+ */
 BlockedRingBuf_t *Get_BlockedRingBuf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag);
+
+/**
+ * Destructor for ring buffer
+ * @p : addr of ring buffer
+ */
 void Del_BlockedRingBuf(BlockedRingBuf_t *r);
 
 #if DEBUG
 ssize_t Push_BlockedRingBuf(BlockedRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o);
 #else
+/**
+ * Push memory into ring buffer
+ * 
+ * Blocking waits if full
+ * 
+ * @p : addr of ring buffer
+ * @args : obj that need to write into ring buffer
+ * 
+ * Return the head index where data was pushed
+ */
 ssize_t Push_BlockedRingBuf(BlockedRingBuf_t *p, void *args);
 #endif
 
+/**
+ * Pop memory from ring buffer
+ * 
+ * Blocking waits if empty
+ * 
+ * @p : addr of ring buffer
+ * @buf : buffer to store data in the ring buffer
+ * 
+ * Return the tail index where data was popped
+ */
 ssize_t Pop_BlockedRingBuf(BlockedRingBuf_t *p, void *buf);
+
+/**
+ * Not yet implemented
+ * Pop a chunck of memory from ring buffer
+ * 
+ * @p : addr of ring buffer
+ * @buf : buffer to store data in the ring buffer
+ * @max_num : max number to store into buffer
+ *
+ * Retrun the number of objs popped
+ */
+ssize_t Batch_pop_BlockedRingBuf(BlockedRingBuf_t *p, void *buf, size_t max_num);
 
 #ifdef __cplusplus
 }
