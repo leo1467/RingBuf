@@ -19,12 +19,16 @@ void Del_MpmcRingBuf(MpmcRingBuf_t *p)
 }
 
 #if DEBUG
-ssize_t Try_push_MpmcRingBuf(MpmcRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o)
+ssize_t Try_push_MpmcRingBuf(MpmcRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o, size_t size)
 #else
-ssize_t Try_push_MpmcRingBuf(MpmcRingBuf_t *p, void *args)
+ssize_t Try_push_MpmcRingBuf(MpmcRingBuf_t *p, void *args, size_t size)
 #endif
 {
     RingBuf_t *r = (RingBuf_t *) p;
+    if (size > r->objSize_) {
+        errno = RINGBUF_PUSH_SIZE_TOO_LARGE;
+        return errno;
+    }
     unsigned spin = 0;
 
     for (;;) {

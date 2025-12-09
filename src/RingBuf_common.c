@@ -31,6 +31,7 @@ const char* RingBuf_strerror(int error_code)
         case RINGBUF_CAPACITY_WRONG:        return "Capacity must be the power of two and >= 2";
         case RINGBUF_MAPPING_NOT_EXITS:     return "Use MAP_EXIST but memory mapping does not exist";
         case RINGBUF_MAPPING_SIZE_ERROR:    return "Mapping size mismatch";
+        case RINGBUF_PUSH_SIZE_TOO_LARGE:   return "Push size exceeded base obj size";
         default:                            return strerror(errno);
     }
 }

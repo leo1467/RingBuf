@@ -46,6 +46,7 @@ typedef void (*testFunc)(Time_diff_t *arr, size_t pushed, char buf[], Obj *o);
 #define RINGBUF_CAPACITY_WRONG      -106 /**< Capacity is not the power of two */
 #define RINGBUF_MAPPING_NOT_EXITS   -107 /**< Use MAP_EXIST but memory mapping does not exist */
 #define RINGBUF_MAPPING_SIZE_ERROR  -108 /**< Memory mapping size mismatch */
+#define RINGBUF_PUSH_SIZE_TOO_LARGE -109 /**< Push size exceeded base obj size */
 
 /**
  * Types of ring buffer
@@ -146,7 +147,7 @@ void *Begin_pop_SpscRingBuf(SpscRingBuf_t *p);
 void End_pop_SpscRingBuf(SpscRingBuf_t *p);
 
 #if DEBUG
-ssize_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o);
+ssize_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o, size_t size);
 #else
 /**
  * Push memory into ring buffer
@@ -155,10 +156,11 @@ ssize_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t 
  * 
  * @p : addr of ring buffer
  * @args : obj that need to write into ring buffer
+ * @size : size of memory to push, no exceed base obj size of ring buffer
  * 
  * Return the head index where data was pushed
  */
-ssize_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args);
+ssize_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args, size_t size);
 #endif
 
 /**
@@ -216,8 +218,8 @@ MpscRingBuf_t *Get_MpscRingBuf(const size_t objNum, const size_t objSize, const 
 void Del_MpscRingBuf(MpscRingBuf_t *p);
 
 #if DEBUG
-ssize_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o);
-ssize_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o);
+ssize_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o, size_t size);
+ssize_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o, size_t size);
 #else
 /**
  * Push memory into ring buffer
@@ -227,10 +229,11 @@ ssize_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args, testFunc cb, Time_dif
  * 
  * @p : addr of ring buffer
  * @args : obj that need to write into ring buffer
+ * @size : size of memory to push, no exceed base obj size of ring buffer
  * 
  * Return the head index where data was pushed
  */
-ssize_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args);
+ssize_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args, size_t size);
 
 /**
  * Push memory into ring buffer
@@ -238,10 +241,11 @@ ssize_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args);
  * 
  * @p : addr of ring buffer
  * @args : obj that need to write into ring buffer
+ * @size : size of memory to push, no exceed base obj size of ring buffer
  * 
  * Return the head index where data was pushed, -1 if full or contention
  */
-ssize_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args);
+ssize_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args, size_t size);
 #endif
 
 /**
@@ -309,17 +313,18 @@ MpmcRingBuf_t *Get_MpmcRingBuf(const size_t objNum, const size_t objSize, const 
 void Del_MpmcRingBuf(MpmcRingBuf_t *p);
 
 #if DEBUG
-ssize_t Try_push_MpmcRingBuf(MpmcRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o);
+ssize_t Try_push_MpmcRingBuf(MpmcRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o, size_t size);
 #else
 /**
  * Push memory into ring buffer, producers don't blocked from each other
  * 
  * @p : addr of ring buffer
  * @args : obj that need to write into ring buffer
+ * @size : size of memory to push, no exceed base obj size of ring buffer
  * 
  * Return the head index where data was pushed, -1 if full or contention
  */
-ssize_t Try_push_MpmcRingBuf(MpmcRingBuf_t *p, void *args);
+ssize_t Try_push_MpmcRingBuf(MpmcRingBuf_t *p, void *args, size_t size);
 #endif
 
 /**
@@ -378,7 +383,7 @@ BlockedRingBuf_t *Get_BlockedRingBuf(const size_t objNum, const size_t objSize, 
 void Del_BlockedRingBuf(BlockedRingBuf_t *r);
 
 #if DEBUG
-ssize_t Push_BlockedRingBuf(BlockedRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o);
+ssize_t Push_BlockedRingBuf(BlockedRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o, size_t size);
 #else
 /**
  * Push memory into ring buffer
@@ -387,10 +392,11 @@ ssize_t Push_BlockedRingBuf(BlockedRingBuf_t *p, void *args, testFunc cb, Time_d
  * 
  * @p : addr of ring buffer
  * @args : obj that need to write into ring buffer
+ * @size : size of memory to push, no exceed base obj size of ring buffer
  * 
  * Return the head index where data was pushed
  */
-ssize_t Push_BlockedRingBuf(BlockedRingBuf_t *p, void *args);
+ssize_t Push_BlockedRingBuf(BlockedRingBuf_t *p, void *args, size_t size);
 #endif
 
 /**

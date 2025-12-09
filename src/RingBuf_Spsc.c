@@ -58,12 +58,16 @@ void End_pop_SpscRingBuf(SpscRingBuf_t *p)
 }
 
 #if DEBUG
-ssize_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o)
+ssize_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o, size_t size)
 #else
-ssize_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args)
+ssize_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args, size_t size)
 #endif
 {
     RingBuf_t *r = (RingBuf_t *) p;
+    if (size > r->objSize_) {
+        errno = RINGBUF_PUSH_SIZE_TOO_LARGE;
+        return errno;
+    }
     const size_t curr_head = atomic_load_explicit(&r->head_, memory_order_relaxed);
     while ((curr_head - (atomic_load_explicit(&r->tail_, memory_order_acquire))) >= r->objNum_) {
         cpu_relax();
