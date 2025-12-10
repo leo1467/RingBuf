@@ -27,10 +27,21 @@ namespace RingBufWrapper
 
 struct RingBufType
 {
-    struct Spsc {};
-    struct Mpsc {};
-    struct Mpmc {};
-    struct Blocked {};
+    struct Spsc
+    {
+    };
+
+    struct Mpsc
+    {
+    };
+
+    struct Mpmc
+    {
+    };
+
+    struct Blocked
+    {
+    };
 };
 
 template <typename RingTypeTag>
@@ -90,9 +101,9 @@ struct RingBufTypeTrait<RingBufType::Mpmc>
 
     static void DelRing(type *r) { Del_MpmcRingBuf(r); }
 
-    static ssize_t TryPush(type *r, void *data, size_t len) { return Try_push_MpmcRingBuf(r, data, len); }
+    static ssize_t Push(type *r, void *data, size_t len) { return Try_push_MpmcRingBuf(r, data, len); }
 
-    static ssize_t TryPop(type *r, void *out) { return Try_pop_MpmcMpscRingBuf(r, out); }
+    static ssize_t Pop(type *r, void *out) { return Try_pop_MpmcMpscRingBuf(r, out); }
 
     static int Pop_w_cb(type *r, Pop_cb cb, void *args) { return Pop_w_cb_MpmcRingBuf(r, cb, args); }
 };
@@ -149,65 +160,64 @@ public:
     template <typename R = RingType,
               typename Callable,
               typename... Args,
-              typename = std::enable_if_t<is_one_of_v<R, RingBufType::Mpsc, RingBufType::Mpmc, RingBufType::Spsc>>,
-              std::enable_if_t<!std::is_function_v<std::remove_pointer_t<std::decay_t<Callable>>>, int> = 0>
-    auto Pop_w_cb(Callable &&callback, Args &&...args) noexcept(
-        // 這邊會確保傳進來的callback第一個是void*，且callback的其他參數正確對應
-        noexcept(std::invoke(std::forward<Callable>(callback), std::declval<Obj *>(), std::forward<Args>(args)...)))
-    {
-        auto user_args_tuple = std::forward_as_tuple(std::forward<Args>(args)...);
-
-        using CbRef = std::add_lvalue_reference_t<Callable>;
-
-        struct TrampolineContext
-        {
-            CbRef cpp_callback;
-            decltype(user_args_tuple) &user_args;
-        };
-
-        TrampolineContext context{callback, user_args_tuple};
-
-        auto trampoline = [](void *obj_in_buf, void *user_context_ptr) -> int {
-            auto *ctx = static_cast<TrampolineContext *>(user_context_ptr);
-            /* 因為除了傳進來的參數會被打包成tuple以外，還有一個obj_in_buf需要傳進去callback，所以要用std::invoke來呼叫才能帶入obj_in_buf
-             * 如果單純用std::apply，參數只能放兩個，第一個callback，第二個tuple，所以傳進來的callback第一個一定是void *，後面隨意
-             */
-            return std::apply(
-                [&](auto &&...unpacked_args) {
-                    return std::invoke(ctx->cpp_callback, static_cast<Obj *>(obj_in_buf), unpacked_args...);
-                },
-                ctx->user_args);
-        };
-
-        // 不能丟到thread pool裡面，否則context會dangling reference
-        if constexpr (is_one_of_v<R, RingBufType::Mpsc, RingBufType::Mpmc>) {
-            return Base::Pop_w_cb(r_, trampoline, &context);
-        } else {  // Spsc
-            auto *p = static_cast<Obj *>(Base::BeginPop(r_));
-            int rc = trampoline(p, &context);
-            Base::EndPop(r_);
-            return rc;
-        }
-    }
-
-    template <typename R = RingType,
               typename = std::enable_if_t<is_one_of_v<R, RingBufType::Mpsc, RingBufType::Mpmc, RingBufType::Spsc>>>
-    auto Pop_w_cb(Pop_cb cb, void *args) noexcept
+    auto Pop_w_cb(Callable &&callback, Args &&...args)
     {
-        if constexpr (is_one_of_v<R, RingBufType::Mpsc, RingBufType::Mpmc>) {
-            return Base::Pop_w_cb(r_, cb, args);
+        constexpr auto is_fast_path = (sizeof...(Args) == 1) &&
+                                      std::is_convertible_v<std::tuple_element_t<0, std::tuple<Args...>>, void *> &&
+                                      std::is_convertible_v<Callable, Pop_cb>;
+        /* 只有一個參數，且參數是void *，且cb是int(void *, void *)，才會進來 */
+        if constexpr (is_fast_path) {
+            auto &first_arg = std::get<0>(std::forward_as_tuple(args...));
+            if constexpr (is_one_of_v<R, RingBufType::Mpsc, RingBufType::Mpmc>) {
+                return Base::Pop_w_cb(r_, callback, first_arg);
+            } else {
+                void *p = Base::BeginPop(r_);
+                int rc = callback(p, first_arg);
+                Base::EndPop(r_);
+                return rc;
+            }
         } else {
-            void *p = Base::BeginPop(r_);
-            int rc = cb(p, args);
-            Base::EndPop(r_);
-            return rc;
+            auto user_args_tuple = std::forward_as_tuple(std::forward<Args>(args)...);
+
+            using CbRef = std::add_lvalue_reference_t<Callable>;
+
+            struct TrampolineContext
+            {
+                CbRef cpp_callback;
+                decltype(user_args_tuple) &user_args;
+            };
+
+            TrampolineContext context{callback, user_args_tuple};
+
+            auto trampoline = [](void *obj_in_buf, void *user_context_ptr) -> int {
+                auto *ctx = static_cast<TrampolineContext *>(user_context_ptr);
+                /* 因為除了傳進來的參數會被打包成tuple以外，還有一個obj_in_buf需要傳進去callback，所以要用std::invoke來呼叫才能帶入obj_in_buf
+                 * 如果單純用std::apply，參數只能放兩個，第一個callback，第二個tuple，所以callback宣告的第一個一定是void *，後面隨意
+                **/
+                return std::apply(
+                    [&](auto &&...unpacked_args) {
+                        return std::invoke(ctx->cpp_callback, static_cast<Obj *>(obj_in_buf), unpacked_args...);
+                    },
+                    ctx->user_args);
+            };
+
+            // 不能丟到thread pool裡面，否則context會dangling reference
+            if constexpr (is_one_of_v<R, RingBufType::Mpsc, RingBufType::Mpmc>) {
+                return Base::Pop_w_cb(r_, trampoline, &context);
+            } else {  // Spsc
+                auto *p = static_cast<Obj *>(Base::BeginPop(r_));
+                int rc = trampoline(p, &context);
+                Base::EndPop(r_);
+                return rc;
+            }
         }
     }
 
     template <typename R = RingType, typename = std::enable_if_t<std::is_same_v<R, RingBufType::Mpmc>>>
     ssize_t Pop_MpmcMpscRingBuf(Obj &obj) noexcept
     {
-        return RingBufTypeTrait<RingBufType::Mpmc>::TryPop(r_, static_cast<void *>(&obj));
+        return Try_pop_MpmcMpscRingBuf(r_, reinterpret_cast<void *>(&obj));
     }
 
     const char *Get_RingBuf_strerror(int err) const noexcept { return RingBuf_strerror(err); }
