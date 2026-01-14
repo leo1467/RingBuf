@@ -1,3 +1,8 @@
 *.gp
 *.png
 *.data
+.cache
+compile_commands.json
+*.tmp
+*.swp
+tmp

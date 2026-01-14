@@ -2,8 +2,8 @@
 #include <fcntl.h>
 #include <pthread.h>
 #include <stdatomic.h>
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
@@ -15,8 +15,8 @@
 #include "RingBuf_public.h"
 #include "common.h"
 
-__attribute__((always_inline)) inline 
-static long long time_diff( const struct timespec *s, const struct timespec *e)
+__attribute__((always_inline)) inline static long long time_diff(const struct timespec *s,
+                                                                 const struct timespec *e)
 {
     long long start_ns = s->tv_sec * 1000000000LL + s->tv_nsec;
     long long end_ns = e->tv_sec * 1000000000LL + e->tv_nsec;
@@ -24,8 +24,7 @@ static long long time_diff( const struct timespec *s, const struct timespec *e)
     return end_ns - start_ns;
 }
 
-__attribute__((always_inline)) inline
-static bool check(Obj *o, char buf[], int64_t rcc)
+__attribute__((always_inline)) inline static bool check(Obj *o, char buf[], int64_t rcc)
 {
     char newchar = (buf[0] + o->seq) * PRIME % 97 % 26 + 97;
     char tmp = buf[0];
@@ -44,7 +43,10 @@ static bool check(Obj *o, char buf[], int64_t rcc)
     rc = (o->magH == magichead) && (o->magT == magictail);
     if (rc == false) {
         char bb[2048] = {};
-        snprintf(bb, sizeof(bb), "magichead=[%u], magictail=[%u], o->seq=[%lu], o->magH=[%lu], o->magT=[%lu], rcc=[%ld]\n", magichead, magictail, o->seq, o->magH, o->magT, rcc);
+        snprintf(bb, sizeof(bb),
+                 "magichead=[%u], magictail=[%u], o->seq=[%lu], o->magH=[%lu], o->magT=[%lu], "
+                 "rcc=[%ld]\n",
+                 magichead, magictail, o->seq, o->magH, o->magT, rcc);
         write(STDOUT_FILENO, bb, strlen(bb));
     }
 EXIT:
@@ -52,11 +54,13 @@ EXIT:
     return rc;
 }
 
-__attribute__((always_inline)) inline
-static void chose_test_type_comsumer(Time_diff_t *arr, char buf[], Obj *o, int64_t rcc)
+__attribute__((always_inline)) inline static void chose_test_type_comsumer(Time_diff_t *arr,
+                                                                           char buf[],
+                                                                           Obj *o,
+                                                                           int64_t rcc)
 {
 #if TIME_TEST == 1
-    clock_gettime(CLOCK_MONOTONIC, &(arr[o->seq].e)); // 紀錄pop時間
+    clock_gettime(CLOCK_MONOTONIC, &(arr[o->seq].e));  // 紀錄pop時間
 #else
 #if ASSERT == 1
     assert(check(o, buf, rcc));
@@ -104,7 +108,7 @@ void *consumer_thd_work(void *args_)
     NuThdBindCore(atomic_fetch_add_explicit(coreN, 2, memory_order_release));
 #endif
     Obj o;
-    while (atomic_load_explicit(got, memory_order_acquire)< N) {
+    while (atomic_load_explicit(got, memory_order_acquire) < N) {
 #if SPSC == 1
         rcc = Pop_SpscRingBuf(r, &o);
 #elif COMMIT == 1
@@ -136,13 +140,15 @@ int main()
 {
 #if SPSC == 1
     // SpscRingBuf_t *r = Get_SpscRingBuf(OBJ_NUM, sizeof(Obj), SHM_PATH, MAP_EXIST | MAP_SHM, 0);
-    SpscRingBuf_t *r = Get_SpscRingBuf(OBJ_NUM, sizeof(Obj), SHM_PATH, MAP_EXIST | MAP_SHM, MAP_HUGETLB);
+    SpscRingBuf_t *r =
+        Get_SpscRingBuf(OBJ_NUM, sizeof(Obj), SHM_PATH, MAP_EXIST | MAP_SHM, MAP_HUGETLB);
 #elif COMMIT == 1
     MpscRingBuf_t *r = Get_MpscRingBuf(OBJ_NUM, sizeof(Obj), SHM_PATH, MAP_EXIST | MAP_SHM, 0);
 #elif SLOT == 1
     MpmcRingBuf_t *r = Get_MpmcRingBuf(OBJ_NUM, sizeof(Obj), SHM_PATH, MAP_EXIST | MAP_SHM, 0);
 #elif BLOCK == 1
-    BlockedRingBuf_t *r = Get_BlockedRingBuf(OBJ_NUM, sizeof(Obj), SHM_PATH, MAP_EXIST | MAP_SHM, 0);
+    BlockedRingBuf_t *r =
+        Get_BlockedRingBuf(OBJ_NUM, sizeof(Obj), SHM_PATH, MAP_EXIST | MAP_SHM, 0);
 #endif
     if (!r) {
         perror("RingBuf constructor");
@@ -169,7 +175,7 @@ int main()
         close(fd);
         return 1;
     }
-    Time_diff_t *arr = (Time_diff_t *) p; // 紀錄push pop時間用
+    Time_diff_t *arr = (Time_diff_t *) p;  // 紀錄push pop時間用
 
     pthread_t tids[CON_THD_NUM];
     atomic_int coreN;
@@ -187,7 +193,7 @@ int main()
 
 #if TIME_TEST == 1
     for (int i = 0; i < N; ++i) {
-        fprintf(stdout, "%lld\n", time_diff(&arr[i].s, &arr[i].e)); // 印出push pop印出時間
+        fprintf(stdout, "%lld\n", time_diff(&arr[i].s, &arr[i].e));  // 印出push pop印出時間
     }
 #endif
 #if SPSC == 1

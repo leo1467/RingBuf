@@ -13,23 +13,28 @@
 /* ARM yield instruction for spin-wait loops */
 #define cpu_relax() __asm__ __volatile__("yield" ::: "memory")
 #else
-#define cpu_relax() do {} while (0)
+#define cpu_relax() \
+    do {            \
+    } while (0)
 #endif
 
 #if DEBUG
-typedef struct Obj_ {
+typedef struct Obj_
+{
     uint64_t magH;
     char buf[1024];
     uint64_t magT;
     uint64_t seq;
-} __attribute__((__aligned__(64))) __attribute__((__packed__)) Obj ;
+} __attribute__((__aligned__(64))) __attribute__((__packed__)) Obj;
 
-typedef struct Time_diff_ {
+typedef struct Time_diff_
+{
     struct timespec s;
     char pad1[64 - sizeof(struct timespec)];
     struct timespec e;
     char pad2[64 - sizeof(struct timespec)];
 } __attribute__((aligned(64))) Time_diff_t;
+
 typedef void (*testFunc)(Time_diff_t *arr, size_t pushed, char buf[], Obj *o);
 #endif
 
@@ -37,15 +42,15 @@ typedef void (*testFunc)(Time_diff_t *arr, size_t pushed, char buf[], Obj *o);
  * RingBuf specific return values
  * Negative values indicate errors, positive values indicate success with additional info
  */
-#define RINGBUF_SUCCESS              0   /**< Operation successful */
-#define RINGBUF_FULL                -100 /**< Ring buffer is full */
-#define RINGBUF_EMPTY               -101 /**< Ring buffer is empty */
-#define RINGBUF_CONTENTION          -103 /**< High contention, retry suggested */
-#define RINGBUF_INVALID_PARAM       -104 /**< Invalid parameters */
-#define RINGBUF_NO_MAPPING_TYPE     -105 /**< No mapping type specified */
-#define RINGBUF_CAPACITY_WRONG      -106 /**< Capacity is not the power of two */
-#define RINGBUF_MAPPING_NOT_EXITS   -107 /**< Use MAP_EXIST but memory mapping does not exist */
-#define RINGBUF_MAPPING_SIZE_ERROR  -108 /**< Memory mapping size mismatch */
+#define RINGBUF_SUCCESS 0                /**< Operation successful */
+#define RINGBUF_FULL -100                /**< Ring buffer is full */
+#define RINGBUF_EMPTY -101               /**< Ring buffer is empty */
+#define RINGBUF_CONTENTION -103          /**< High contention, retry suggested */
+#define RINGBUF_INVALID_PARAM -104       /**< Invalid parameters */
+#define RINGBUF_NO_MAPPING_TYPE -105     /**< No mapping type specified */
+#define RINGBUF_CAPACITY_WRONG -106      /**< Capacity is not the power of two */
+#define RINGBUF_MAPPING_NOT_EXITS -107   /**< Use MAP_EXIST but memory mapping does not exist */
+#define RINGBUF_MAPPING_SIZE_ERROR -108  /**< Memory mapping size mismatch */
 #define RINGBUF_PUSH_SIZE_TOO_LARGE -109 /**< Push size exceeded base obj size */
 
 /**
@@ -67,18 +72,19 @@ typedef struct _BlockedRingBuf BlockedRingBuf_t;
  * Determine where the ring buffer located at 
  * Used to specify the memory allocation/mapping method for the ring buffer
  */
-enum RingBufMappingType {
-    MAP_MALLOC  = 1 << 24, /**< Default, using malloc to allocate ring buffer */
-    MAP_SHM     = 1 << 25, /**< Mapping ring buffer onto shared memory */
-    MAP_NEW     = 1 << 26, /**< Default, mapping to new chunk of memory */
-    MAP_EXIST   = 1 << 27, /**< Mapping to a existing shared memory */
+enum RingBufMappingType
+{
+    MAP_MALLOC = 1 << 24, /**< Default, using malloc to allocate ring buffer */
+    MAP_SHM = 1 << 25,    /**< Mapping ring buffer onto shared memory */
+    MAP_NEW = 1 << 26,    /**< Default, mapping to new chunk of memory */
+    MAP_EXIST = 1 << 27,  /**< Mapping to a existing shared memory */
 };
 
 /**
  * Callback for callback type functions
  * Used in callback-based pop functions to avoid extra memory copy
  */
-typedef int(*Pop_cb)(void *obj, void *args);
+typedef int (*Pop_cb)(void *obj, void *args);
 
 #ifdef __cplusplus
 extern "C" {
@@ -87,7 +93,7 @@ extern "C" {
 /**
  * Helper function to get error description
  */
-const char* RingBuf_strerror(int error_code);
+const char *RingBuf_strerror(int error_code);
 
 /**
  * Spsc functions
@@ -105,7 +111,11 @@ const char* RingBuf_strerror(int error_code);
  * 
  * Return the addr of ring buffer
  */
-SpscRingBuf_t *Get_SpscRingBuf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag);
+SpscRingBuf_t *Get_SpscRingBuf(const size_t objNum,
+                               const size_t objSize,
+                               const char *shmPath,
+                               int prot,
+                               int flag);
 
 /**
  * Destructor for ring buffer
@@ -147,7 +157,13 @@ void *Begin_pop_SpscRingBuf(SpscRingBuf_t *p);
 void End_pop_SpscRingBuf(SpscRingBuf_t *p);
 
 #if DEBUG
-ssize_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o, size_t size);
+ssize_t Push_SpscRingBuf(SpscRingBuf_t *p,
+                         void *args,
+                         testFunc cb,
+                         Time_diff_t *arr,
+                         char buf[],
+                         Obj *o,
+                         size_t size);
 #else
 /**
  * Push memory into ring buffer
@@ -209,7 +225,11 @@ size_t Size_SpscRingBuf(SpscRingBuf_t *p);
  * 
  * Return the addr of ring buffer
  */
-MpscRingBuf_t *Get_MpscRingBuf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag);
+MpscRingBuf_t *Get_MpscRingBuf(const size_t objNum,
+                               const size_t objSize,
+                               const char *shmPath,
+                               int prot,
+                               int flag);
 
 /**
  * Destructor for ring buffer
@@ -218,8 +238,20 @@ MpscRingBuf_t *Get_MpscRingBuf(const size_t objNum, const size_t objSize, const 
 void Del_MpscRingBuf(MpscRingBuf_t *p);
 
 #if DEBUG
-ssize_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o, size_t size);
-ssize_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o, size_t size);
+ssize_t Push_MpscRingBuf(MpscRingBuf_t *p,
+                         void *args,
+                         testFunc cb,
+                         Time_diff_t *arr,
+                         char buf[],
+                         Obj *o,
+                         size_t size);
+ssize_t Try_push_MpscRingBuf(MpscRingBuf_t *p,
+                             void *args,
+                             testFunc cb,
+                             Time_diff_t *arr,
+                             char buf[],
+                             Obj *o,
+                             size_t size);
 #else
 /**
  * Push memory into ring buffer
@@ -304,7 +336,11 @@ size_t Size_MpscRingBuf(MpscRingBuf_t *p);
  * 
  * Return the addr of ring buffer
  */
-MpmcRingBuf_t *Get_MpmcRingBuf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag);
+MpmcRingBuf_t *Get_MpmcRingBuf(const size_t objNum,
+                               const size_t objSize,
+                               const char *shmPath,
+                               int prot,
+                               int flag);
 
 /**
  * Destructor for ring buffer
@@ -313,7 +349,13 @@ MpmcRingBuf_t *Get_MpmcRingBuf(const size_t objNum, const size_t objSize, const 
 void Del_MpmcRingBuf(MpmcRingBuf_t *p);
 
 #if DEBUG
-ssize_t Try_push_MpmcRingBuf(MpmcRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o, size_t size);
+ssize_t Try_push_MpmcRingBuf(MpmcRingBuf_t *p,
+                             void *args,
+                             testFunc cb,
+                             Time_diff_t *arr,
+                             char buf[],
+                             Obj *o,
+                             size_t size);
 #else
 /**
  * Push memory into ring buffer, producers don't blocked from each other
@@ -374,7 +416,11 @@ ssize_t Try_pop_MpmcMpscRingBuf(MpmcRingBuf_t *p, void *buf);
  * 
  * Return the addr of ring buffer
  */
-BlockedRingBuf_t *Get_BlockedRingBuf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag);
+BlockedRingBuf_t *Get_BlockedRingBuf(const size_t objNum,
+                                     const size_t objSize,
+                                     const char *shmPath,
+                                     int prot,
+                                     int flag);
 
 /**
  * Destructor for ring buffer
@@ -383,7 +429,13 @@ BlockedRingBuf_t *Get_BlockedRingBuf(const size_t objNum, const size_t objSize, 
 void Del_BlockedRingBuf(BlockedRingBuf_t *r);
 
 #if DEBUG
-ssize_t Push_BlockedRingBuf(BlockedRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o, size_t size);
+ssize_t Push_BlockedRingBuf(BlockedRingBuf_t *p,
+                            void *args,
+                            testFunc cb,
+                            Time_diff_t *arr,
+                            char buf[],
+                            Obj *o,
+                            size_t size);
 #else
 /**
  * Push memory into ring buffer

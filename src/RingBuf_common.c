@@ -9,10 +9,11 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "RingBuf_public.h"
 #include "RingBuf_private.h"
+#include "RingBuf_public.h"
 
-typedef struct _SizeInfo {
+typedef struct _SizeInfo
+{
     size_t buf_off_s;
     size_t buf_off_e;
     size_t slot_off_s;
@@ -20,31 +21,43 @@ typedef struct _SizeInfo {
     size_t total_size;
 } SizeInfo_t;
 
-const char* RingBuf_strerror(int error_code)
+const char *RingBuf_strerror(int error_code)
 {
     switch (error_code) {
-        case RINGBUF_SUCCESS:               return "Success";
-        case RINGBUF_FULL:                  return "Ring buffer is full";
-        case RINGBUF_EMPTY:                 return "Ring buffer is empty";
-        case RINGBUF_CONTENTION:            return "High contention, retry suggested";
-        case RINGBUF_INVALID_PARAM:         return "Invalid parameters";
-        case RINGBUF_NO_MAPPING_TYPE:       return "No mapping type specified";
-        case RINGBUF_CAPACITY_WRONG:        return "Capacity must be the power of two and >= 2";
-        case RINGBUF_MAPPING_NOT_EXITS:     return "Use MAP_EXIST but memory mapping does not exist";
-        case RINGBUF_MAPPING_SIZE_ERROR:    return "Mapping size mismatch";
-        case RINGBUF_PUSH_SIZE_TOO_LARGE:   return "Push size exceeded base obj size";
-        default:                            return strerror(errno);
+    case RINGBUF_SUCCESS:
+        return "Success";
+    case RINGBUF_FULL:
+        return "Ring buffer is full";
+    case RINGBUF_EMPTY:
+        return "Ring buffer is empty";
+    case RINGBUF_CONTENTION:
+        return "High contention, retry suggested";
+    case RINGBUF_INVALID_PARAM:
+        return "Invalid parameters";
+    case RINGBUF_NO_MAPPING_TYPE:
+        return "No mapping type specified";
+    case RINGBUF_CAPACITY_WRONG:
+        return "Capacity must be the power of two and >= 2";
+    case RINGBUF_MAPPING_NOT_EXITS:
+        return "Use MAP_EXIST but memory mapping does not exist";
+    case RINGBUF_MAPPING_SIZE_ERROR:
+        return "Mapping size mismatch";
+    case RINGBUF_PUSH_SIZE_TOO_LARGE:
+        return "Push size exceeded base obj size";
+    default:
+        return strerror(errno);
     }
 }
 
-__attribute__((always_inline)) inline
-static size_t get_aligned_offset(size_t base_offset, size_t alignment)
+__attribute__((always_inline)) inline static size_t get_aligned_offset(size_t base_offset,
+                                                                       size_t alignment)
 {
     return (base_offset + alignment - 1) & ~(alignment - 1);
 }
 
-__attribute__((always_inline)) inline
-static SizeInfo_t get_total_size(const size_t objNum, const size_t objSize, int useSlot)
+__attribute__((always_inline)) inline static SizeInfo_t get_total_size(const size_t objNum,
+                                                                       const size_t objSize,
+                                                                       int useSlot)
 {
     size_t total_size = 0;
     size_t buffer_offset_start = 0;
@@ -55,14 +68,16 @@ static SizeInfo_t get_total_size(const size_t objNum, const size_t objSize, int 
     buffer_offset_end = get_aligned_offset(buffer_offset_start + objSize * objNum, CACHE_LINE_SIZE);
     if (useSlot & USE_SLOT) {
         slot_offset_start = get_aligned_offset(buffer_offset_end, CACHE_LINE_SIZE);
-        slot_offset_end = get_aligned_offset(slot_offset_start + sizeof(atomic_size_t) * objNum, CACHE_LINE_SIZE);
+        slot_offset_end =
+            get_aligned_offset(slot_offset_start + sizeof(atomic_size_t) * objNum, CACHE_LINE_SIZE);
         total_size = slot_offset_end;
     } else if (useSlot & NO_SLOT) {
-        total_size = buffer_offset_end;;
+        total_size = buffer_offset_end;
+        ;
     }
 
-    return (SizeInfo_t){.buf_off_s  = buffer_offset_start, 
-                        .buf_off_e  = buffer_offset_end,
+    return (SizeInfo_t){.buf_off_s = buffer_offset_start,
+                        .buf_off_e = buffer_offset_end,
                         .slot_off_s = slot_offset_start,
                         .slot_off_e = slot_offset_end,
                         .total_size = total_size};
@@ -81,7 +96,12 @@ static void *get_buf_malloc(size_t totalSz, int *fd)
     return p;
 }
 
-static void *get_buf_shm(size_t totalSz, int *fd, int prot, int flag, const char *shmPath, bool needNew)
+static void *get_buf_shm(size_t totalSz,
+                         int *fd,
+                         int prot,
+                         int flag,
+                         const char *shmPath,
+                         bool needNew)
 {
     int rc = 0;
     void *p = NULL;
@@ -91,7 +111,7 @@ static void *get_buf_shm(size_t totalSz, int *fd, int prot, int flag, const char
         return NULL;
     }
     if (MAP_HUGETLB & flag) {
-        totalSz =  ceil((double)totalSz / HUGEPAGE_SIZE) * HUGEPAGE_SIZE;
+        totalSz = ceil((double) totalSz / HUGEPAGE_SIZE) * HUGEPAGE_SIZE;
     }
 
     if (shmPath) {
@@ -120,8 +140,8 @@ static void *get_buf_shm(size_t totalSz, int *fd, int prot, int flag, const char
             errno = RINGBUF_MAPPING_NOT_EXITS;
             return NULL;
         }
-        if ((size_t)st.st_size != totalSz) {
-            errno = RINGBUF_MAPPING_SIZE_ERROR;  
+        if ((size_t) st.st_size != totalSz) {
+            errno = RINGBUF_MAPPING_SIZE_ERROR;
             return NULL;
         }
     }
@@ -138,7 +158,12 @@ static void *get_buf_shm(size_t totalSz, int *fd, int prot, int flag, const char
     return p;
 }
 
-RingBuf_t *get_buf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag, int useSlot)
+RingBuf_t *get_buf(const size_t objNum,
+                   const size_t objSize,
+                   const char *shmPath,
+                   int prot,
+                   int flag,
+                   int useSlot)
 {
     /* 物件數量只能是2的冪次才能index到正確的位置 */
     // assert((objNum >= 2) && ((objNum & (objNum - 1)) == 0));
@@ -212,7 +237,11 @@ void del_buf(RingBuf_t *r)
     }
 }
 
-BRingBuf_t *get_blocked_buf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag)
+BRingBuf_t *get_blocked_buf(const size_t objNum,
+                            const size_t objSize,
+                            const char *shmPath,
+                            int prot,
+                            int flag)
 {
     /* 物件數量只能是2的冪次才能index到正確的位置 */
     // assert((objNum >= 2) && ((objNum & (objNum - 1)) == 0));

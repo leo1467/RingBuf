@@ -2,8 +2,8 @@
 #include <fcntl.h>
 #include <pthread.h>
 #include <stdatomic.h>
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
@@ -15,11 +15,13 @@
 #include "RingBuf_public.h"
 #include "common.h"
 
-__attribute__((always_inline)) inline
-static void chose_test_type_producer(Time_diff_t *arr, size_t pushed, char buf[], Obj *o)
+__attribute__((always_inline)) inline static void chose_test_type_producer(Time_diff_t *arr,
+                                                                           size_t pushed,
+                                                                           char buf[],
+                                                                           Obj *o)
 {
 #if TIME_TEST == 1
-    clock_gettime(CLOCK_MONOTONIC, &(arr[pushed].s)); // 紀錄push時間
+    clock_gettime(CLOCK_MONOTONIC, &(arr[pushed].s));  // 紀錄push時間
     o->seq = pushed;
 #else
     o->magH = magichead;
@@ -66,7 +68,7 @@ void *producer_thd_work(void *args_)
 
 #if SPSC == 1
         rcc = Push_SpscRingBuf(r, &o, chose_test_type_producer, arr, buf, &o, sizeof(Obj));
-#elif COMMIT  == 1
+#elif COMMIT == 1
 #if TRY == 1
         rcc = Try_push_MpscRingBuf(r, &o, chose_test_type_producer, arr, buf, &o, sizeof(Obj));
 #else
@@ -90,9 +92,9 @@ void *producer_thd_work(void *args_)
 #endif
         } else {
 #if YIELD == 1
-                sched_yield();
+            sched_yield();
 #elif RELAX == 1
-                cpu_relax();
+            cpu_relax();
 #endif
         }
     }
@@ -103,7 +105,8 @@ int main()
 {
 #if SPSC == 1
     // SpscRingBuf_t *r = Get_SpscRingBuf(OBJ_NUM, sizeof(Obj), SHM_PATH, MAP_NEW | MAP_SHM, 0);
-    SpscRingBuf_t *r = Get_SpscRingBuf(OBJ_NUM, sizeof(Obj), SHM_PATH, MAP_NEW | MAP_SHM, MAP_HUGETLB | MAP_POPULATE);
+    SpscRingBuf_t *r = Get_SpscRingBuf(OBJ_NUM, sizeof(Obj), SHM_PATH, MAP_NEW | MAP_SHM,
+                                       MAP_HUGETLB | MAP_POPULATE);
 #elif COMMIT == 1
     MpscRingBuf_t *r = Get_MpscRingBuf(OBJ_NUM, sizeof(Obj), SHM_PATH, MAP_NEW | MAP_SHM, 0);
 #elif SLOT == 1
@@ -136,11 +139,11 @@ int main()
         close(fd);
         return 1;
     }
-    Time_diff_t *arr = (Time_diff_t *) p; // 紀錄push pop時間用
+    Time_diff_t *arr = (Time_diff_t *) p;  // 紀錄push pop時間用
 
     write(STDOUT_FILENO, "count down ", strlen("count donw "));
     char bb[16] = {};
-    for (int i = 10; i > 0; --i) { // 讓comsumer先跑
+    for (int i = 10; i > 0; --i) {  // 讓comsumer先跑
         snprintf(bb, sizeof(bb) - 1, "%d ", i);
         write(STDOUT_FILENO, bb, strlen(bb));
         sleep(1);

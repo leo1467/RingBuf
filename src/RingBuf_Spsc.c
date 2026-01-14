@@ -6,12 +6,16 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
-#include "RingBuf_public.h"
 #include "RingBuf_private.h"
+#include "RingBuf_public.h"
 
-SpscRingBuf_t *Get_SpscRingBuf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag)
+SpscRingBuf_t *Get_SpscRingBuf(const size_t objNum,
+                               const size_t objSize,
+                               const char *shmPath,
+                               int prot,
+                               int flag)
 {
-    return (SpscRingBuf_t* ) get_buf(objNum, objSize, shmPath, prot, flag, NO_SLOT);
+    return (SpscRingBuf_t *) get_buf(objNum, objSize, shmPath, prot, flag, NO_SLOT);
 }
 
 void Del_SpscRingBuf(SpscRingBuf_t *p)
@@ -58,7 +62,13 @@ void End_pop_SpscRingBuf(SpscRingBuf_t *p)
 }
 
 #if DEBUG
-ssize_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o, size_t size)
+ssize_t Push_SpscRingBuf(SpscRingBuf_t *p,
+                         void *args,
+                         testFunc cb,
+                         Time_diff_t *arr,
+                         char buf[],
+                         Obj *o,
+                         size_t size)
 #else
 ssize_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args, size_t size)
 #endif

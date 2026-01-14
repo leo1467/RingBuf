@@ -5,10 +5,14 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
-#include "RingBuf_public.h"
 #include "RingBuf_private.h"
+#include "RingBuf_public.h"
 
-MpscRingBuf_t *Get_MpscRingBuf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag)
+MpscRingBuf_t *Get_MpscRingBuf(const size_t objNum,
+                               const size_t objSize,
+                               const char *shmPath,
+                               int prot,
+                               int flag)
 {
     return (MpscRingBuf_t *) get_buf(objNum, objSize, shmPath, prot, flag, NO_SLOT);
 }
@@ -19,7 +23,13 @@ void Del_MpscRingBuf(MpscRingBuf_t *p)
 }
 
 #if DEBUG
-ssize_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o, size_t size)
+ssize_t Push_MpscRingBuf(MpscRingBuf_t *p,
+                         void *args,
+                         testFunc cb,
+                         Time_diff_t *arr,
+                         char buf[],
+                         Obj *o,
+                         size_t size)
 #else
 ssize_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args, size_t size)
 #endif
@@ -45,7 +55,13 @@ ssize_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args, size_t size)
 }
 
 #if DEBUG
-ssize_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o, size_t size)
+ssize_t Try_push_MpscRingBuf(MpscRingBuf_t *p,
+                             void *args,
+                             testFunc cb,
+                             Time_diff_t *arr,
+                             char buf[],
+                             Obj *o,
+                             size_t size)
 #else
 ssize_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args, size_t size)
 #endif
@@ -64,10 +80,12 @@ ssize_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args, size_t size)
             errno = RINGBUF_FULL;
             return errno;
         }
-        if (atomic_compare_exchange_weak_explicit(&r->head_, &expected_head, expected_head + 1, memory_order_acq_rel, memory_order_relaxed)) {
+        if (atomic_compare_exchange_weak_explicit(&r->head_, &expected_head, expected_head + 1,
+                                                  memory_order_acq_rel, memory_order_relaxed)) {
             break;
         }
-        if (++spin > RETRY_NUM) return -1;
+        if (++spin > RETRY_NUM)
+            return -1;
     }
 #if DEBUG
     cb(arr, expected_head, buf, o);

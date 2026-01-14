@@ -4,15 +4,28 @@
 #include "RingBuf_private.h"
 #include "RingBuf_public.h"
 
-BlockedRingBuf_t *Get_BlockedRingBuf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag)
+BlockedRingBuf_t *Get_BlockedRingBuf(const size_t objNum,
+                                     const size_t objSize,
+                                     const char *shmPath,
+                                     int prot,
+                                     int flag)
 {
     return (BlockedRingBuf_t *) get_blocked_buf(objNum, objSize, shmPath, prot, flag);
 }
 
-void Del_BlockedRingBuf(BlockedRingBuf_t *r) { del_blocked_buf((BRingBuf_t *) r); }
+void Del_BlockedRingBuf(BlockedRingBuf_t *r)
+{
+    del_blocked_buf((BRingBuf_t *) r);
+}
 
 #if DEBUG
-ssize_t Push_BlockedRingBuf(BlockedRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o, size_t size)
+ssize_t Push_BlockedRingBuf(BlockedRingBuf_t *p,
+                            void *args,
+                            testFunc cb,
+                            Time_diff_t *arr,
+                            char buf[],
+                            Obj *o,
+                            size_t size)
 #else
 ssize_t Push_BlockedRingBuf(BlockedRingBuf_t *p, void *args, size_t size)
 #endif
