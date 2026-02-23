@@ -157,11 +157,8 @@ public:
     }
 
     // Callable-based pop with trampoline (requires synchronous callback invocation by C layer)
-    template <typename R = RingType,
-              typename Callable,
-              typename... Args,
-              typename = std::enable_if_t<is_one_of_v<R, RingBufType::Mpsc, RingBufType::Mpmc, RingBufType::Spsc>>>
-    auto Pop_w_cb(Callable &&callback, Args &&...args)
+    template <typename R = RingType, typename Callable, typename... Args>
+    ssize_t Pop_w_cb(Callable &&callback, Args &&...args)
     {
         constexpr auto is_fast_path = (sizeof...(Args) == 1) &&
                                       std::is_convertible_v<std::tuple_element_t<0, std::tuple<Args...>>, void *> &&
@@ -171,11 +168,20 @@ public:
             auto &first_arg = std::get<0>(std::forward_as_tuple(args...));
             if constexpr (is_one_of_v<R, RingBufType::Mpsc, RingBufType::Mpmc>) {
                 return Base::Pop_w_cb(r_, callback, first_arg);
-            } else {
+            } else if constexpr (std::is_same_v<R, RingBufType::Spsc>) {
                 void *p = Base::BeginPop(r_);
                 int rc = callback(p, first_arg);
                 Base::EndPop(r_);
                 return rc;
+            } else if constexpr (std::is_same_v<R, RingBufType::Blocked>) {
+                Obj obj{};
+                int rc = Base::Pop(r_, reinterpret_cast<void *>(&obj));
+                if (rc < 0) {
+                    return rc;
+                }
+                return callback(reinterpret_cast<void *>(&obj), first_arg);
+            } else {
+                return -1;
             }
         } else {
             auto user_args_tuple = std::forward_as_tuple(std::forward<Args>(args)...);
