@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <fcntl.h>
+#include <math.h>
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -80,7 +81,7 @@ static void *get_buf_malloc(size_t totalSz, int *fd)
     return p;
 }
 
-static void *get_buf_shm(size_t totalSz, int *fd, int prot, const char *shmPath, bool needNew)
+static void *get_buf_shm(size_t totalSz, int *fd, int prot, int flag, const char *shmPath, bool needNew)
 {
     int rc = 0;
     void *p = NULL;
@@ -88,6 +89,9 @@ static void *get_buf_shm(size_t totalSz, int *fd, int prot, const char *shmPath,
     if (!needNew && !shmPath) {
         errno = RINGBUF_INVALID_PARAM;
         return NULL;
+    }
+    if (MAP_HUGETLB & flag) {
+        totalSz =  ceil((double)totalSz / HUGEPAGE_SIZE) * HUGEPAGE_SIZE;
     }
 
     if (shmPath) {
@@ -122,7 +126,10 @@ static void *get_buf_shm(size_t totalSz, int *fd, int prot, const char *shmPath,
         }
     }
 
-    p = mmap(NULL, totalSz, PROT_READ | PROT_WRITE, MAP_SHARED, *fd, 0);
+    if (!(flag & MAP_SHARED) && !(flag & MAP_PRIVATE)) {
+        flag |= MAP_SHARED;
+    }
+    p = mmap(NULL, totalSz, PROT_READ | PROT_WRITE, flag, *fd, 0);
     if (p == MAP_FAILED) {
         close(*fd);
         return NULL;
@@ -158,7 +165,7 @@ RingBuf_t *get_buf(const size_t objNum, const size_t objSize, const char *shmPat
         p = get_buf_malloc(info.total_size, &fd);
     } else if (useSHM) {
         needNew = !(prot & MAP_EXIST);
-        p = get_buf_shm(info.total_size, &fd, prot, shmPath, needNew);
+        p = get_buf_shm(info.total_size, &fd, prot, flag, shmPath, needNew);
     }
 
     if (!p) {
@@ -232,7 +239,7 @@ BRingBuf_t *get_blocked_buf(const size_t objNum, const size_t objSize, const cha
         p = get_buf_malloc(totalSize, &fd);
     } else if (useSHM) {
         needNew = !(prot & MAP_EXIST);
-        p = get_buf_shm(totalSize, &fd, prot, shmPath, needNew);
+        p = get_buf_shm(totalSize, &fd, prot, flag, shmPath, needNew);
     }
 
     if (!p) {

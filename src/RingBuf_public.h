@@ -101,7 +101,7 @@ const char* RingBuf_strerror(int error_code);
  * @shmPath : path for file backend shared memory, 
  *            will map to anonymous if not given
  * @prot : Oring RingBufMappingType
- * @flag : Not yet implemented
+ * @flag : The same as mmap, MAP_SHARED, MAP_PRIVATE, MAP_POPULATED...
  * 
  * Return the addr of ring buffer
  */
@@ -205,7 +205,7 @@ size_t Size_SpscRingBuf(SpscRingBuf_t *p);
  * @shmPath : path for file backend shared memory, 
  *            will map to anonymous if not given
  * @prot : Oring RingBufMappingType
- * @flag : Not yet implemented
+ * @flag : The same as mmap, MAP_SHARED, MAP_PRIVATE, MAP_POPULATED...
  * 
  * Return the addr of ring buffer
  */
@@ -300,7 +300,7 @@ size_t Size_MpscRingBuf(MpscRingBuf_t *p);
  * @shmPath : path for file backend shared memory, 
  *            will map to anonymous if not given
  * @prot : Oring RingBufMappingType
- * @flag : Not yet implemented
+ * @flag : The same as mmap, MAP_SHARED, MAP_PRIVATE, MAP_POPULATED...
  * 
  * Return the addr of ring buffer
  */
@@ -370,7 +370,7 @@ ssize_t Try_pop_MpmcMpscRingBuf(MpmcRingBuf_t *p, void *buf);
  * @shmPath : path for file backend shared memory, 
  *            will map to anonymous if not given
  * @prot : Oring RingBufMappingType
- * @flag : Not yet implemented
+ * @flag : The same as mmap, MAP_SHARED, MAP_PRIVATE, MAP_POPULATED...
  * 
  * Return the addr of ring buffer
  */

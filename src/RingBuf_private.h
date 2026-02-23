@@ -6,6 +6,7 @@
 #include "RingBuf_public.h"
 
 #define CACHE_LINE_SIZE 64
+#define HUGEPAGE_SIZE (2 * 1024 * 1024)
 #define RETRY_NUM 64
 
 /**
@@ -20,15 +21,11 @@ enum RingBufSlot {
 
 typedef struct _RingBuf {
     atomic_size_t head_ __attribute__((__aligned__(CACHE_LINE_SIZE)));
-    char pad0[CACHE_LINE_SIZE - sizeof(atomic_size_t)];
     atomic_size_t commit_ __attribute__((__aligned__(CACHE_LINE_SIZE)));
-    char pad1[CACHE_LINE_SIZE - sizeof(atomic_size_t)];
-
     atomic_size_t tail_ __attribute__((__aligned__(CACHE_LINE_SIZE)));
-    char pad2[CACHE_LINE_SIZE - sizeof(atomic_size_t)];
 
     // ---- buffer data ----
-    size_t objSize_;
+    size_t objSize_ __attribute__((__aligned__(CACHE_LINE_SIZE)));
     size_t objNum_;
     size_t mask_;
     size_t totalSize_;
@@ -36,7 +33,7 @@ typedef struct _RingBuf {
     int fd;
     size_t buffer_offset_;
     size_t slot_offset_;
-    char pad3[CACHE_LINE_SIZE - sizeof(size_t) * 4 - sizeof(int) * 2 - sizeof(size_t) * 2];
+    char pad[CACHE_LINE_SIZE - sizeof(size_t) * 4 - sizeof(int) * 2 - sizeof(size_t) * 2];
 } __attribute__((__aligned__(CACHE_LINE_SIZE))) RingBuf_t;
 
 RingBuf_t *get_buf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag, int useSlot);
