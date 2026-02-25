@@ -125,11 +125,11 @@ int main()
     SpscRingBuf_t *r = Get_SpscRingBuf(OBJ_NUM, sizeof(Obj), SHM_PATH, MAP_NEW | MAP_SHM, 0);
     // SpscRingBuf_t *r = Get_SpscRingBuf(OBJ_NUM, sizeof(Obj), SHM_PATH, MAP_NEW | MAP_SHM, MAP_HUGETLB | MAP_POPULATE);
 #elif MPSC == 1
-    // MpscRingBuf_t *r = Get_MpscRingBuf(OBJ_NUM, sizeof(Obj), SHM_PATH, MAP_NEW | MAP_SHM, 0);
-    MpscRingBuf_t *r = Get_MpscRingBuf(OBJ_NUM, sizeof(Obj), SHM_PATH, MAP_NEW | MAP_SHM, MAP_HUGETLB | MAP_POPULATE);
+    MpscRingBuf_t *r = Get_MpscRingBuf(OBJ_NUM, sizeof(Obj), SHM_PATH, MAP_NEW | MAP_SHM, 0);
+    // MpscRingBuf_t *r = Get_MpscRingBuf(OBJ_NUM, sizeof(Obj), SHM_PATH, MAP_NEW | MAP_SHM, MAP_HUGETLB | MAP_POPULATE);
 #elif MPMC == 1
-    // MpmcRingBuf_t *r = Get_MpmcRingBuf(OBJ_NUM, sizeof(Obj), SHM_PATH, MAP_NEW | MAP_SHM, 0);
-    MpmcRingBuf_t *r = Get_MpmcRingBuf(OBJ_NUM, sizeof(Obj), SHM_PATH, MAP_NEW | MAP_SHM, MAP_HUGETLB | MAP_POPULATE);
+    MpmcRingBuf_t *r = Get_MpmcRingBuf(OBJ_NUM, sizeof(Obj), SHM_PATH, MAP_NEW | MAP_SHM, 0);
+    // MpmcRingBuf_t *r = Get_MpmcRingBuf(OBJ_NUM, sizeof(Obj), SHM_PATH, MAP_NEW | MAP_SHM, MAP_HUGETLB | MAP_POPULATE);
 #elif BLOCK == 1
     BlockRingBuf_t *r = Get_BlockRingBuf(OBJ_NUM, sizeof(Obj), SHM_PATH, MAP_NEW | MAP_SHM, 0);
 #endif

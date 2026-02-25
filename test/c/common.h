@@ -45,8 +45,8 @@
 #define magictail 0xBEEFDEAD
 
 // #define SHM_PATH NULL
-// #define SHM_PATH "/dev/shm/ringBuf"
-#define SHM_PATH "/mnt/huge/test"
+#define SHM_PATH "/dev/shm/ringBuf"
+// #define SHM_PATH "/mnt/huge/test"
 #define SHM_TIME_ARR "/dev/shm/timeArr"
 
 typedef struct args_
