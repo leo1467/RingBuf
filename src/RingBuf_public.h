@@ -181,18 +181,6 @@ ssize_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args, size_t size);
  */
 ssize_t Pop_SpscRingBuf(SpscRingBuf_t *p, void *buf);
 
-/**
- * Not yet implemented
- * Pop a chunck of memory from ring buffer
- * 
- * @p : addr of ring buffer
- * @buf : buffer to store data in the ring buffer
- * @max_num : max number to store into buffer
- *
- * Retrun the number of objs popped
- */
-ssize_t Batch_pop_SpscRingBuf(SpscRingBuf_t *p, void *buf, size_t max_num);
-
 bool Is_empty_SpscRingBuf(SpscRingBuf_t *p);
 bool Is_full_SpscRingBuf(SpscRingBuf_t *p);
 size_t Capacity_SpscRingBuf(SpscRingBuf_t *p);
@@ -258,18 +246,6 @@ ssize_t Pop_MpscRingBuf(MpscRingBuf_t *p, void *buf);
  * Return the value returned by cb, -1 if empty
  */
 int Pop_w_cb_MpscRingBuf(MpscRingBuf_t *p, Pop_cb cb, void *args);
-
-/**
- * Not yet implemented
- * Pop a chunck of memory from ring buffer
- * 
- * @p : addr of ring buffer
- * @buf : buffer to store data in the ring buffer
- * @max_num : max number to store into buffer
- *
- * Retrun the number of objs popped
- */
-ssize_t Batch_pop_MpscRingBuf(MpscRingBuf_t *p, void *buf, size_t max_num);
 
 bool Is_empty_MpscRingBuf(MpscRingBuf_t *p);
 bool Is_full_MpscRingBuf(MpscRingBuf_t *p);
