@@ -54,30 +54,22 @@ void del_buf(RingBuf_t *r);
 
 typedef struct _BRingBuf {
     size_t head_ __attribute__((__aligned__(CACHE_LINE_SIZE)));
-    char pad0[CACHE_LINE_SIZE - sizeof(size_t)];
-
     size_t tail_ __attribute__((__aligned__(CACHE_LINE_SIZE)));
-    char pad1[CACHE_LINE_SIZE - sizeof(size_t)];
+    pthread_mutex_t mtx __attribute__((__aligned__(CACHE_LINE_SIZE)));
+    pthread_cond_t writeable __attribute__((__aligned__(CACHE_LINE_SIZE)));
+    pthread_cond_t readable __attribute__((__aligned__(CACHE_LINE_SIZE)));
 
-    pthread_mutex_t mtx; // size 40
-    char pad2[CACHE_LINE_SIZE - sizeof(pthread_mutex_t)];
-    
-    pthread_cond_t writeable; // size 48
-    char pad3[CACHE_LINE_SIZE - sizeof(pthread_cond_t)];
-
-    pthread_cond_t readable; // size 48
-    char pad4[CACHE_LINE_SIZE - sizeof(pthread_cond_t)];
-
-    size_t objSize_;
+    // ---- buffer metadata ----
+    size_t objSize_ __attribute__((__aligned__(CACHE_LINE_SIZE)));
     size_t objNum_;
     size_t mask_;
     size_t totalSize_;
     int mapType_;
     int fd;
-    char pad5[CACHE_LINE_SIZE - sizeof(size_t) * 4 - sizeof(int) * 2];
+    char pad[CACHE_LINE_SIZE - sizeof(size_t) * 4 - sizeof(int) * 2];
 
     char buffer[];
 } __attribute__((__aligned__(CACHE_LINE_SIZE))) BRingBuf_t;
 
-BRingBuf_t *get_blocked_buf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag);
-void del_blocked_buf(BRingBuf_t *r);
+BRingBuf_t *get_block_buf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag);
+void del_block_buf(BRingBuf_t *r);

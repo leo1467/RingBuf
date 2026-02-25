@@ -4,17 +4,17 @@
 #include "RingBuf_private.h"
 #include "RingBuf_public.h"
 
-BlockedRingBuf_t *Get_BlockedRingBuf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag)
+BlockRingBuf_t *Get_BlockRingBuf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag)
 {
-    return (BlockedRingBuf_t *) get_blocked_buf(objNum, objSize, shmPath, prot, flag);
+    return (BlockRingBuf_t *) get_block_buf(objNum, objSize, shmPath, prot, flag);
 }
 
-void Del_BlockedRingBuf(BlockedRingBuf_t *r) { del_blocked_buf((BRingBuf_t *) r); }
+void Del_BlockRingBuf(BlockRingBuf_t *r) { del_block_buf((BRingBuf_t *) r); }
 
 #if DEBUG
-ssize_t Push_BlockedRingBuf(BlockedRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o, size_t size)
+ssize_t Push_BlockRingBuf(BlockRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o, size_t size)
 #else
-ssize_t Push_BlockedRingBuf(BlockedRingBuf_t *p, void *args, size_t size)
+ssize_t Push_BlockRingBuf(BlockRingBuf_t *p, void *args, size_t size)
 #endif
 {
     BRingBuf_t *r = (BRingBuf_t *) p;
@@ -37,7 +37,7 @@ ssize_t Push_BlockedRingBuf(BlockedRingBuf_t *p, void *args, size_t size)
     return head;
 }
 
-ssize_t Pop_BlockedRingBuf(BlockedRingBuf_t *p, void *buf)
+ssize_t Pop_BlockRingBuf(BlockRingBuf_t *p, void *buf)
 {
     BRingBuf_t *r = (BRingBuf_t *) p;
     pthread_mutex_lock(&r->mtx);

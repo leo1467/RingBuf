@@ -39,7 +39,7 @@ struct RingBufType
     {
     };
 
-    struct Blocked
+    struct Block
     {
     };
 };
@@ -109,20 +109,20 @@ struct RingBufTypeTrait<RingBufType::Mpmc>
 };
 
 template <>
-struct RingBufTypeTrait<RingBufType::Blocked>
+struct RingBufTypeTrait<RingBufType::Block>
 {
-    using type = BlockedRingBuf_t;
+    using type = BlockRingBuf_t;
 
     static type *GetRing(const size_t n, const size_t objSize, const char *path, int prot, int flag)
     {
-        return Get_BlockedRingBuf(n, objSize, path, prot, flag);
+        return Get_BlockRingBuf(n, objSize, path, prot, flag);
     }
 
-    static void DelRing(type *r) { Del_BlockedRingBuf(r); }
+    static void DelRing(type *r) { Del_BlockRingBuf(r); }
 
-    static ssize_t Push(type *r, void *data, size_t len) { return Push_BlockedRingBuf(r, data, len); }
+    static ssize_t Push(type *r, void *data, size_t len) { return Push_BlockRingBuf(r, data, len); }
 
-    static ssize_t Pop(type *r, void *out) { return Pop_BlockedRingBuf(r, out); }
+    static ssize_t Pop(type *r, void *out) { return Pop_BlockRingBuf(r, out); }
 };
 
 template <typename T, typename... Options>
@@ -131,7 +131,7 @@ inline constexpr bool is_one_of_v = (std::is_same_v<T, Options> || ...);
 template <typename RingType, typename Obj, size_t ObjNum>
 class RingBuf final : private RingBufTypeTrait<RingType>
 {
-    static_assert(is_one_of_v<RingType, RingBufType::Spsc, RingBufType::Mpsc, RingBufType::Mpmc, RingBufType::Blocked>,
+    static_assert(is_one_of_v<RingType, RingBufType::Spsc, RingBufType::Mpsc, RingBufType::Mpmc, RingBufType::Block>,
                   "RingType wrong");
     static_assert((ObjNum >= 2) && ((ObjNum & (ObjNum - 1)) == 0), "ObjNum need to be power of 2");
 
@@ -173,7 +173,7 @@ public:
                 int rc = callback(p, first_arg);
                 Base::EndPop(r_);
                 return rc;
-            } else if constexpr (std::is_same_v<R, RingBufType::Blocked>) {
+            } else if constexpr (std::is_same_v<R, RingBufType::Block>) {
                 Obj obj{};
                 int rc = Base::Pop(r_, reinterpret_cast<void *>(&obj));
                 if (rc < 0) {

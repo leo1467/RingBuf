@@ -53,18 +53,18 @@ typedef void (*testFunc)(Time_diff_t *arr, size_t pushed, char buf[], Obj *o);
 
 /**
  * Types of ring buffer
- * Underlying implementation is similar except for the blocked ring buffer (Not yet implementeded)
+ * Underlying implementation is similar except for the blocking ring buffer
  * Each type has its own corresponding API functions
  * 
  * Spsc: single producer, single consumer
  * Mpsc: multi producer, single consumer
  * Mpmc: multi producer, multi consumer
- * Blocked: blocking ring buffer, Not yet implemented
+ * Block: blocking ring buffer, multi producer, multi consumer
  */
 typedef struct _SpscRingBuf SpscRingBuf_t;
 typedef struct _MpscRingBuf MpscRingBuf_t;
 typedef struct _MpmcRingBuf MpmcRingBuf_t;
-typedef struct _BlockedRingBuf BlockedRingBuf_t;
+typedef struct _BlockRingBuf_t BlockRingBuf_t;
 
 /**
  * Determine where the ring buffer located at 
@@ -318,7 +318,7 @@ void Del_MpmcRingBuf(MpmcRingBuf_t *p);
 ssize_t Try_push_MpmcRingBuf(MpmcRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o, size_t size);
 #else
 /**
- * Push memory into ring buffer, producers don't blocked from each other
+ * Push memory into ring buffer, producers don't block from each other
  * 
  * @p : addr of ring buffer
  * @args : obj that need to write into ring buffer
@@ -361,11 +361,11 @@ int Pop_w_cb_MpmcRingBuf(MpmcRingBuf_t *p, Pop_cb cb, void *args);
 ssize_t Try_pop_MpmcMpscRingBuf(MpmcRingBuf_t *p, void *buf);
 
 /**
- * Blocked functions
+ * Block functions
  */
 
 /**
- * Generate Blocked ring buffer
+ * Generate Blocking ring buffer
  * 
  * @objNum : number of objs can be placed into ring buffer
  * @objSize : size of obj instance
@@ -376,16 +376,16 @@ ssize_t Try_pop_MpmcMpscRingBuf(MpmcRingBuf_t *p, void *buf);
  * 
  * Return the addr of ring buffer
  */
-BlockedRingBuf_t *Get_BlockedRingBuf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag);
+BlockRingBuf_t *Get_BlockRingBuf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag);
 
 /**
  * Destructor for ring buffer
  * @p : addr of ring buffer
  */
-void Del_BlockedRingBuf(BlockedRingBuf_t *r);
+void Del_BlockRingBuf(BlockRingBuf_t *r);
 
 #if DEBUG
-ssize_t Push_BlockedRingBuf(BlockedRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o, size_t size);
+ssize_t Push_BlockRingBuf(BlockRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o, size_t size);
 #else
 /**
  * Push memory into ring buffer
@@ -398,7 +398,7 @@ ssize_t Push_BlockedRingBuf(BlockedRingBuf_t *p, void *args, testFunc cb, Time_d
  * 
  * Return the head index where data was pushed
  */
-ssize_t Push_BlockedRingBuf(BlockedRingBuf_t *p, void *args, size_t size);
+ssize_t Push_BlockRingBuf(BlockRingBuf_t *p, void *args, size_t size);
 #endif
 
 /**
@@ -411,7 +411,7 @@ ssize_t Push_BlockedRingBuf(BlockedRingBuf_t *p, void *args, size_t size);
  * 
  * Return the tail index where data was popped
  */
-ssize_t Pop_BlockedRingBuf(BlockedRingBuf_t *p, void *buf);
+ssize_t Pop_BlockRingBuf(BlockRingBuf_t *p, void *buf);
 
 /**
  * Not yet implemented
@@ -423,7 +423,7 @@ ssize_t Pop_BlockedRingBuf(BlockedRingBuf_t *p, void *buf);
  *
  * Retrun the number of objs popped
  */
-ssize_t Batch_pop_BlockedRingBuf(BlockedRingBuf_t *p, void *buf, size_t max_num);
+ssize_t Batch_pop_BlockRingBuf(BlockRingBuf_t *p, void *buf, size_t max_num);
 
 #ifdef __cplusplus
 }

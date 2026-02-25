@@ -223,7 +223,7 @@ void del_buf(RingBuf_t *r)
     }
 }
 
-BRingBuf_t *get_blocked_buf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag)
+BRingBuf_t *get_block_buf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag)
 {
     /* 物件數量只能是2的冪次才能index到正確的位置 */
     // assert((objNum >= 2) && ((objNum & (objNum - 1)) == 0));
@@ -288,7 +288,7 @@ BRingBuf_t *get_blocked_buf(const size_t objNum, const size_t objSize, const cha
     return r;
 }
 
-void del_blocked_buf(BRingBuf_t *r)
+void del_block_buf(BRingBuf_t *r)
 {
     if (r) {
         pthread_mutex_destroy(&r->mtx);
