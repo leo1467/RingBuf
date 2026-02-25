@@ -33,6 +33,8 @@ const char* RingBuf_strerror(int error_code)
         case RINGBUF_MAPPING_NOT_EXITS:     return "Use MAP_EXIST but memory mapping does not exist";
         case RINGBUF_MAPPING_SIZE_ERROR:    return "Mapping size mismatch";
         case RINGBUF_PUSH_SIZE_TOO_LARGE:   return "Push size exceeded base obj size";
+        case RINGBUF_SLOT_WRITING_DATA:     return "Producer is writing slot";
+        case RINGBUF_SLOT_STAT_UNKNOWN:     return "Ring buffer slot data unknown, probably won't happen";
         default:                            return strerror(errno);
     }
 }
@@ -53,7 +55,7 @@ static SizeInfo_t get_total_size(const size_t objNum, const size_t objSize, int 
     size_t slot_offset_end = 0;
     buffer_offset_start = get_aligned_offset(sizeof(RingBuf_t), CACHE_LINE_SIZE);
     buffer_offset_end = get_aligned_offset(buffer_offset_start + objSize * objNum, CACHE_LINE_SIZE);
-    if (useSlot & USE_SLOT) {
+    if (useSlot & (MPMC_SLOT | MPSC_SLOT)) {
         slot_offset_start = get_aligned_offset(buffer_offset_end, CACHE_LINE_SIZE);
         slot_offset_end = get_aligned_offset(slot_offset_start + sizeof(atomic_size_t) * objNum, CACHE_LINE_SIZE);
         total_size = slot_offset_end;
@@ -147,6 +149,10 @@ RingBuf_t *get_buf(const size_t objNum, const size_t objSize, const char *shmPat
         return NULL;
     }
 
+    if (!(useSlot & (MPSC_SLOT | MPMC_SLOT | NO_SLOT))) {
+        errno = RINGBUF_USE_SLOT_NA;
+        return NULL;
+    }
     SizeInfo_t info = get_total_size(objNum, objSize, useSlot);
 
     int fd = -1;
@@ -175,7 +181,7 @@ RingBuf_t *get_buf(const size_t objNum, const size_t objSize, const char *shmPat
     RingBuf_t *r = p;
     if (needNew) {
         atomic_init(&r->head_, 0);
-        atomic_init(&r->commit_, 0);
+        // atomic_init(&r->commit_, 0);
         atomic_init(&r->tail_, 0);
         r->objSize_ = objSize;
         r->objNum_ = objNum;
@@ -184,15 +190,20 @@ RingBuf_t *get_buf(const size_t objNum, const size_t objSize, const char *shmPat
         r->mapType_ = useMalloc ? MAP_MALLOC : MAP_SHM;
         r->fd = fd;
         r->buffer_offset_ = info.buf_off_s;
-        if (useSlot & USE_SLOT) {
+        if (useSlot & MPMC_SLOT) {
             r->slot_offset_ = info.slot_off_s;
             for (size_t i = 0; i < r->objNum_; ++i) {
                 // 初始化 slot 為 i，因為初始狀態下，slot i 可供寫入
                 atomic_store_explicit(&GET_SLOT(r)[i], i, memory_order_release);
             }
-        } else if (useSlot & NO_SLOT) {
-            // r->slot_offset_ is not used when NO_SLOT;
+        } else if (useSlot & MPSC_SLOT) {
+            r->slot_offset_ = info.slot_off_s;
+            for (size_t i = 0; i < r->objNum_; ++i) {
+                // 初始化 slot 為 SLOT_EMPTY
+                atomic_store_explicit(&GET_SLOT(r)[i], SLOT_EMPTY, memory_order_release);
+            }
         }
+        // r->slot_offset_ is not used when NO_SLOT;
     }
 
     return r;

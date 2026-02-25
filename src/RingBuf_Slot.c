@@ -10,7 +10,7 @@
 
 MpmcRingBuf_t *Get_MpmcRingBuf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag)
 {
-    return (MpmcRingBuf_t *) get_buf(objNum, objSize, shmPath, prot, flag, USE_SLOT);
+    return (MpmcRingBuf_t *) get_buf(objNum, objSize, shmPath, prot, flag, MPMC_SLOT);
 }
 
 void Del_MpmcRingBuf(MpmcRingBuf_t *p)

@@ -15,16 +15,25 @@
 #define RINGBUF_SET_ERROR(err) do { errno = (err); return (err); } while(0)
 
 enum RingBufSlot {
-    USE_SLOT = 1 << 0,
-    NO_SLOT  = 1 << 1,
+    NA_SLOT = 0,
+    NO_SLOT  = 1 << 0,
+    MPSC_SLOT = 1 << 1,
+    MPMC_SLOT = 1 << 2,
+};
+
+enum SlotStat
+{
+    SLOT_UNKNOWN = 0,
+    SLOT_EMPTY = 1 << 0,
+    SLOT_VALID = 1 << 1,
 };
 
 typedef struct _RingBuf {
     atomic_size_t head_ __attribute__((__aligned__(CACHE_LINE_SIZE)));
-    atomic_size_t commit_ __attribute__((__aligned__(CACHE_LINE_SIZE)));
+    // atomic_size_t commit_ __attribute__((__aligned__(CACHE_LINE_SIZE)));
     atomic_size_t tail_ __attribute__((__aligned__(CACHE_LINE_SIZE)));
 
-    // ---- buffer data ----
+    // ---- buffer metadata ----
     size_t objSize_ __attribute__((__aligned__(CACHE_LINE_SIZE)));
     size_t objNum_;
     size_t mask_;

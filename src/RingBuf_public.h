@@ -47,6 +47,9 @@ typedef void (*testFunc)(Time_diff_t *arr, size_t pushed, char buf[], Obj *o);
 #define RINGBUF_MAPPING_NOT_EXITS   -107 /**< Use MAP_EXIST but memory mapping does not exist */
 #define RINGBUF_MAPPING_SIZE_ERROR  -108 /**< Memory mapping size mismatch */
 #define RINGBUF_PUSH_SIZE_TOO_LARGE -109 /**< Push size exceeded base obj size */
+#define RINGBUF_USE_SLOT_NA         -110 /**< Argument of get_buf of useSlot is not defined */
+#define RINGBUF_SLOT_WRITING_DATA   -111 /**< Producer is writing slot */
+#define RINGBUF_SLOT_STAT_UNKNOWN   -112 /**< Ring buffer slot data unknown, probably won't happen */
 
 /**
  * Types of ring buffer
@@ -194,7 +197,6 @@ size_t Size_SpscRingBuf(SpscRingBuf_t *p);
 
 /**
  * Mpsc functions
- * Implement by using commit variable
  */
 
 /**
@@ -256,7 +258,7 @@ ssize_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args, size_t size);
  * 
  * Return the tail where been popped, -1 if empty
  */
-ssize_t Pop_MpscRingBuf(MpscRingBuf_t *p, void *buf);
+ssize_t Try_Pop_MpscRingBuf(MpscRingBuf_t *p, void *buf);
 
 /**
  * Execute callback immediately after getting the avalible mem in ring buffer
