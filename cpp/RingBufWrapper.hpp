@@ -80,9 +80,7 @@ struct RingBufTypeTrait<RingBufType::Mpsc>
 
     static void DelRing(type *r) { Del_MpscRingBuf(r); }
 
-    static ssize_t Push(type *r, void *data, size_t len) { return Push_MpscRingBuf(r, data, len); }
-
-    static ssize_t TryPush(type *r, void *data, size_t len) { return Try_push_MpscRingBuf(r, data, len); }
+    static ssize_t Push(type *r, void *data, size_t len) { return Try_push_MpscRingBuf(r, data, len); }
 
     static ssize_t Pop(type *r, void *out) { return Try_Pop_MpscRingBuf(r, out); }
 
@@ -102,8 +100,6 @@ struct RingBufTypeTrait<RingBufType::Mpmc>
     static void DelRing(type *r) { Del_MpmcRingBuf(r); }
 
     static ssize_t Push(type *r, void *data, size_t len) { return Try_push_MpmcRingBuf(r, data, len); }
-
-    static ssize_t Pop(type *r, void *out) { return Try_pop_MpmcMpscRingBuf(r, out); }
 
     static int Pop_w_cb(type *r, Pop_cb cb, void *args) { return Pop_w_cb_MpmcRingBuf(r, cb, args); }
 };
@@ -218,12 +214,6 @@ public:
                 return rc;
             }
         }
-    }
-
-    template <typename R = RingType, typename = std::enable_if_t<std::is_same_v<R, RingBufType::Mpmc>>>
-    ssize_t Pop_MpmcMpscRingBuf(Obj &obj) noexcept
-    {
-        return Try_pop_MpmcMpscRingBuf(r_, reinterpret_cast<void *>(&obj));
     }
 
     const char *Get_RingBuf_strerror(int err) const noexcept { return RingBuf_strerror(err); }

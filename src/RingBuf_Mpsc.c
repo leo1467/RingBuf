@@ -19,37 +19,6 @@ void Del_MpscRingBuf(MpscRingBuf_t *p)
 }
 
 #if DEBUG
-ssize_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o, size_t size)
-#else
-ssize_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args, size_t size)
-#endif
-{
-    RingBuf_t *r = (RingBuf_t *) p;
-    if (size > r->objSize_) {
-        errno = RINGBUF_PUSH_SIZE_TOO_LARGE;
-        return errno;
-    }
-    const size_t curr_head = atomic_fetch_add_explicit(&r->head_, 1, memory_order_relaxed);
-    while ((curr_head - (atomic_load_explicit(&r->tail_, memory_order_acquire))) >= r->objNum_) {
-        cpu_relax();
-    }
-#if DEBUG
-    cb(arr, curr_head, buf, o);
-#endif
-    const size_t idx = curr_head & r->mask_;
-    for(;;) {
-        const enum SlotStat slot_stat = atomic_load_explicit(&GET_SLOT(r)[idx], memory_order_acquire);
-        if (slot_stat & SLOT_EMPTY) {
-            break;
-        }
-        cpu_relax();
-    }
-    memcpy(&GET_BUFFER(r)[(curr_head & r->mask_) * r->objSize_], args, r->objSize_);
-    atomic_store_explicit(&GET_SLOT(r)[idx], SLOT_VALID, memory_order_release);
-    return curr_head;
-}
-
-#if DEBUG
 ssize_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o, size_t size)
 #else
 ssize_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args, size_t size)
@@ -60,17 +29,16 @@ ssize_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args, size_t size)
         errno = RINGBUF_PUSH_SIZE_TOO_LARGE;
         return errno;
     }
-    size_t expected_head = atomic_load_explicit(&r->head_, memory_order_acquire);
 
-    for (;;) {
-        size_t curr_tail = atomic_load_explicit(&r->tail_, memory_order_acquire);
-        if (expected_head - curr_tail >= r->objNum_) {
-            errno = RINGBUF_FULL;
-            return errno;
-        }
-        if (atomic_compare_exchange_weak_explicit(&r->head_, &expected_head, expected_head + 1, memory_order_acq_rel, memory_order_relaxed)) {
-            break;
-        }
+    size_t expected_head = atomic_load_explicit(&r->head_, memory_order_acquire);
+    size_t curr_tail = atomic_load_explicit(&r->tail_, memory_order_acquire);
+    if (expected_head - curr_tail >= r->objNum_) {
+        errno = RINGBUF_FULL;
+        return errno;
+    }
+    if (!atomic_compare_exchange_strong_explicit(&r->head_, &expected_head, expected_head + 1, memory_order_acq_rel, memory_order_relaxed)) {
+        errno = RINGBUF_CONTENTION;
+        return errno;
     }
 #if DEBUG
     cb(arr, expected_head, buf, o);

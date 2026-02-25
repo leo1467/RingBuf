@@ -16,6 +16,7 @@
 #define cpu_relax() do {} while (0)
 #endif
 
+// use this when debugging
 #if DEBUG
 typedef struct Obj_ {
     uint64_t magH;
@@ -60,6 +61,8 @@ typedef void (*testFunc)(Time_diff_t *arr, size_t pushed, char buf[], Obj *o);
  * Mpsc: multi producer, single consumer
  * Mpmc: multi producer, multi consumer
  * Block: blocking ring buffer, multi producer, multi consumer
+ * 
+ * REMINDER: SLOW PRODUCERS WILL BLOCK CONSUMERS READ
  */
 typedef struct _SpscRingBuf SpscRingBuf_t;
 typedef struct _MpscRingBuf MpscRingBuf_t;
@@ -220,23 +223,8 @@ MpscRingBuf_t *Get_MpscRingBuf(const size_t objNum, const size_t objSize, const 
 void Del_MpscRingBuf(MpscRingBuf_t *p);
 
 #if DEBUG
-ssize_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o, size_t size);
 ssize_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o, size_t size);
 #else
-/**
- * Push memory into ring buffer
- * 
- * Spin waits if full
- * Spin waits other thread to finish writing which is ahead of this thread
- * 
- * @p : addr of ring buffer
- * @args : obj that need to write into ring buffer
- * @size : size of memory to push, no exceed base obj size of ring buffer
- * 
- * Return the head index where data was pushed
- */
-ssize_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args, size_t size);
-
 /**
  * Push memory into ring buffer
  * Spin waits other thread to finish writing which is ahead of this thread
@@ -349,16 +337,6 @@ ssize_t Try_pop_MpmcRingBuf(MpmcRingBuf_t *p, void *buf);
  * Return the value returned by cb, -1 if empty or contention
  */
 int Pop_w_cb_MpmcRingBuf(MpmcRingBuf_t *p, Pop_cb cb, void *args);
-
-/**
- * Pop memory from ring buffer with only one consumer
- * 
- * @p : addr of ring buffer
- * @buf : buffer to store data in the ring buffer
- * 
- * Return the tail index where data was popped, -1 if empty or contention. Only safe for single consumer (MPSC) use.
- */
-ssize_t Try_pop_MpmcMpscRingBuf(MpmcRingBuf_t *p, void *buf);
 
 /**
  * Block functions

@@ -7,7 +7,6 @@
 
 #define CACHE_LINE_SIZE 64
 #define HUGEPAGE_SIZE (2 * 1024 * 1024)
-#define RETRY_NUM 64
 
 /**
  * Macro to set errno and return error code

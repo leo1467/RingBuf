@@ -29,130 +29,117 @@ ssize_t Try_push_MpmcRingBuf(MpmcRingBuf_t *p, void *args, size_t size)
         errno = RINGBUF_PUSH_SIZE_TOO_LARGE;
         return errno;
     }
-    unsigned spin = 0;
 
-    for (;;) {
-        size_t expected_head = atomic_load_explicit(&r->head_, memory_order_relaxed); // 取得目前 head（生產者預約的序號
-        size_t idx = expected_head & r->mask_;
-        size_t seq = atomic_load_explicit(&GET_SLOT(r)[idx], memory_order_acquire); // 讀取 slot 的 sequence number
+    size_t expected_head = atomic_load_explicit(&r->head_, memory_order_relaxed);  // 取得目前 head
+    size_t idx = expected_head & r->mask_;
+    size_t seq = atomic_load_explicit(&GET_SLOT(r)[idx], memory_order_acquire);  // 讀取 slot seq
 
-        /* seq - pos == 0 代表這格是空的，因為 consumer 讀完之後會把 seq 設為 pos + objNum
-         * producer 繞了一圈會回到這格之後，看到 slot 裡面是 pos + objNum，代表可以寫入 */
-        intptr_t dif = (intptr_t)seq - (intptr_t)expected_head;
+    /* consumer 讀完之後會把 slot 內的 seq 設為 consumer 當下拿到的 tail + objNum
+     * producer 繞了一圈會回到這格，如果 buf 這格是空的，slot seq 會等於 head */
+    intptr_t dif = (intptr_t) seq - (intptr_t) expected_head;
 
-        if (dif == 0) {
-            size_t desired = expected_head + 1; // 嘗試用 CAS 保留這個 slot（head_ 前進）
-            if (atomic_compare_exchange_weak_explicit(&r->head_, &expected_head, desired, memory_order_acq_rel, memory_order_relaxed)) {
-#if DEBUG
-                cb(arr, expected_head, buf, (Obj *)args);
-#endif
-                memcpy(&GET_BUFFER(r)[idx * r->objSize_], args, r->objSize_);
-                atomic_store_explicit(&GET_SLOT(r)[idx], expected_head + 1, memory_order_release); // 發佈：將 slot 的 seq 設為 pos+1，表示這格已經填好可被消費
-                return expected_head;
-            }
-        // CAS 失敗，pos 已被其他 producer 更新，重試
-        } else if (dif < 0) {
-            // seq < pos，代表 queue 滿了
-            errno = RINGBUF_FULL;
-            return errno;
-        } else {
-            // 其他 producer/consumer 尚未完成，稍後重試
-            cpu_relax();
-            if (++spin > RETRY_NUM) {
-                errno = RINGBUF_CONTENTION;
-                return errno;
-            }
-        }
+    if (dif > 0) {
+        /* 假如 thread a 取了 seq ，但突然停住
+         * thread b 也進來取到了 expected_head，且也成功取到了 seq，也成功寫入並更新 slot
+         * 此時 thread a 又開始動，繼續取 slot，此時更新後的 slot 會比 expected_head 還大 */
+        errno = RINGBUF_CONTENTION;
+        return errno;
+    } else if (dif < 0) {
+        /* 如果 consumer 速度太慢，producer 繞一圈追上來
+         * 因為 slot seq 還沒被 consumer 更新成他的 tail + objNum，所以 head 會比較大 */
+        errno = RINGBUF_FULL;
+        return errno;
     }
+
+    size_t desired = expected_head + 1;
+    // 只有成功把 head + 1 的人才有寫入權
+    if (!atomic_compare_exchange_strong_explicit(&r->head_, &expected_head, desired, memory_order_acq_rel, memory_order_relaxed)) {
+        // CAS 失敗，head 已被其他 producer 更新，重試
+        errno = RINGBUF_CONTENTION;
+        return errno;
+    }
+#if DEBUG
+    cb(arr, expected_head, buf, (Obj *) args);
+#endif
+    memcpy(&GET_BUFFER(r)[idx * r->objSize_], args, r->objSize_);
+
+    // 將 slot 的 seq 設為 當下的 head + 1，表示這格已經好了
+    atomic_store_explicit(&GET_SLOT(r)[idx], expected_head + 1, memory_order_release);
+    return expected_head;
 }
 
 ssize_t Try_pop_MpmcRingBuf(MpmcRingBuf_t *p, void *buf)
 {
     RingBuf_t *r = (RingBuf_t *) p;
-    unsigned spin = 0;
 
-    for (;;) {
-        size_t expected_tail = atomic_load_explicit(&r->tail_, memory_order_relaxed); // 取得目前 tail（消費者預約的序號）
-        size_t idx = expected_tail & r->mask_;
-        size_t seq = atomic_load_explicit(&GET_SLOT(r)[idx], memory_order_acquire); // 讀取 slot 的 sequence number
-        intptr_t dif = (intptr_t)seq - (intptr_t)(expected_tail + 1); // seq - (pos+1) == 0 代表這格有資料可讀
+    size_t expected_tail = atomic_load_explicit(&r->tail_, memory_order_relaxed);  /* 取得目前 tail */
+    size_t idx = expected_tail & r->mask_;
+    size_t seq = atomic_load_explicit(&GET_SLOT(r)[idx], memory_order_acquire);  /* 讀取 slot seq */
 
-        if (dif == 0) {
-            size_t desired = expected_tail + 1; // 嘗試用 CAS 保留這個 slot（tail_ 前進）
-            if (atomic_compare_exchange_weak_explicit(&r->tail_, &expected_tail, desired, memory_order_acq_rel, memory_order_relaxed)) {
-                memcpy(buf, &GET_BUFFER(r)[idx * r->objSize_], r->objSize_);
-                atomic_store_explicit(&GET_SLOT(r)[idx], expected_tail + r->objNum_, memory_order_release); // 標記 slot 為 empty，設 seq = pos + objNum，供下一輪 producer 使用
-                return expected_tail;
-            }
-        // CAS 失敗，pos 已被其他 consumer 更新，重試
-        } else if (dif < 0) {
-            // seq < pos+1，代表 queue 為空
-            errno = RINGBUF_EMPTY;
-            return errno;
-        } else {
-            // 其他 producer 尚未 publish，稍後重試
-            cpu_relax();
-            if (++spin > RETRY_NUM) {
-                errno = RINGBUF_CONTENTION;
-                return errno;
-            }
-        }
+    /* 如果 seq 比 tail 大 1， 代表這格有資料可讀 */
+    intptr_t dif = (intptr_t) seq - (intptr_t) (expected_tail + 1);
+
+    if (dif > 0) {
+        /* 假如 thread a 取了 seq ，但突然停住
+         * thread b 也進來取到了 expected_tail，且也成功取到了 seq，也成功寫入並更新 slot
+         * 此時 thread a 又開始動，繼續取 slot，此時更新後的 slot 會比 expected_tail + 1 還大 */
+        errno = RINGBUF_CONTENTION;
+        return errno;
+    } else if (dif < 0) {
+        /* 如果 producer 速度太慢，consumer 追上來
+         * 因為 slot seq 還沒被 producer 更新成他的 head + 1，所以 expected_tail + 1 會比較大 */
+        errno = RINGBUF_EMPTY;
+        return errno;
     }
+
+    size_t desired = expected_tail + 1;
+    /* 只有成功把 tail + 1 的人才有寫入權 */
+    if (!atomic_compare_exchange_strong_explicit(&r->tail_, &expected_tail, desired, memory_order_acq_rel, memory_order_relaxed)) {
+        /* CAS 失敗，tail 已被其他 consumer 更新 */
+        errno = RINGBUF_CONTENTION;
+        return errno;
+    }
+    memcpy(buf, &GET_BUFFER(r)[idx * r->objSize_], r->objSize_);
+
+    /* 將 slot 的 seq 設為 當下的 tail + objNum，表示這格是空的 */
+    atomic_store_explicit(&GET_SLOT(r)[idx], expected_tail + r->objNum_, memory_order_release);
+    return expected_tail;
 }
 
 int Pop_w_cb_MpmcRingBuf(MpmcRingBuf_t *p, Pop_cb cb, void *args)
 {
     RingBuf_t *r = (RingBuf_t *) p;
-    unsigned spin = 0;
 
-    for (;;) {
-        size_t pos = atomic_load_explicit(&r->tail_, memory_order_relaxed); // 取得目前 tail（消費者預約的序號）
-        size_t idx = pos & r->mask_;
-        size_t seq = atomic_load_explicit(&GET_SLOT(r)[idx], memory_order_acquire); // 讀取 slot 的 sequence number
-        intptr_t dif = (intptr_t)seq - (intptr_t)(pos + 1); // seq - (pos+1) == 0 代表這格有資料可讀
+    size_t expected_tail = atomic_load_explicit(&r->tail_, memory_order_relaxed);  /* 取得目前 tail */
+    size_t idx = expected_tail & r->mask_;
+    size_t seq = atomic_load_explicit(&GET_SLOT(r)[idx], memory_order_acquire);  /* 讀取 slot seq */
 
-        if (dif == 0) {
-            size_t desired = pos + 1; // 嘗試用 CAS 保留這個 slot（tail_ 前進）
-            if (atomic_compare_exchange_weak_explicit(&r->tail_, &pos, desired, memory_order_acq_rel, memory_order_relaxed)) {
-                int rc = cb(&GET_BUFFER(r)[idx * r->objSize_], args);
-                atomic_store_explicit(&GET_SLOT(r)[idx], pos + r->objNum_, memory_order_release); // 標記 slot 為 empty，設 seq = pos + objNum，供下一輪 producer 使用
-                return rc;
-            }
-        // CAS 失敗，pos 已被其他 consumer 更新，重試
-        } else if (dif < 0) {
-            // seq < pos+1，代表 queue 為空
-            errno = RINGBUF_EMPTY;
-            return errno;
-        } else {
-            // 其他 producer 尚未 publish，稍後重試
-            cpu_relax();
-            if (++spin > RETRY_NUM) {
-                errno = RINGBUF_CONTENTION;
-                return errno;
-            }
-        }
-    }
-}
+    /* 如果 seq 比 tail 大 1， 代表這格有資料可讀 */
+    intptr_t dif = (intptr_t) seq - (intptr_t) (expected_tail + 1);
 
-ssize_t Try_pop_MpmcMpscRingBuf(MpmcRingBuf_t *p, void *buf)
-{
-    RingBuf_t *r = (RingBuf_t *) p;
-    const size_t curr_head = atomic_load_explicit(&r->head_, memory_order_acquire);
-    const size_t curr_tail = atomic_load_explicit(&r->tail_, memory_order_relaxed);
-    if  (curr_head - curr_tail == 0) {
+    if (dif > 0) {
+        /* 假如 thread a 取了 seq ，但突然停住
+         * thread b 也進來取到了 expected_tail，且也成功取到了 seq，也成功寫入並更新 slot
+         * 此時 thread a 又開始動，繼續取 slot，此時更新後的 slot 會比 expected_tail + 1 還大 */
+        errno = RINGBUF_CONTENTION;
+        return errno;
+    } else if (dif < 0) {
+        /* 如果 producer 速度太慢，consumer 追上來
+         * 因為 slot seq 還沒被 producer 更新成他的 head + 1，所以 expected_tail + 1 會比較大 */
         errno = RINGBUF_EMPTY;
         return errno;
     }
 
-    const size_t expected_signal = curr_tail + 1;
-    const size_t idx = curr_tail & r->mask_;
-    if (atomic_load_explicit(&GET_SLOT(r)[idx], memory_order_acquire) != expected_signal) {
+    size_t desired = expected_tail + 1;
+    /* 只有成功把 tail + 1 的人才有寫入權 */
+    if (!atomic_compare_exchange_strong_explicit(&r->tail_, &expected_tail, desired, memory_order_acq_rel, memory_order_relaxed)) {
+        /* CAS 失敗，tail 已被其他 consumer 更新 */
         errno = RINGBUF_CONTENTION;
-        return errno; 
+        return errno;
     }
+    int rc = cb(&GET_BUFFER(r)[idx * r->objSize_], args);
 
-    memcpy(buf, &GET_BUFFER(r)[idx * r->objSize_], r->objSize_);
-    atomic_store_explicit(&GET_SLOT(r)[idx], curr_tail + r->objNum_, memory_order_release);
-    atomic_store_explicit(&r->tail_, curr_tail + 1, memory_order_relaxed);
-    return curr_tail;
+    /* 將 slot 的 seq 設為 當下的 tail + objNum，表示這格是空的 */
+    atomic_store_explicit(&GET_SLOT(r)[idx], expected_tail + r->objNum_, memory_order_release);
+    return rc;
 }
