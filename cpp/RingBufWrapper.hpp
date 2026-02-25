@@ -80,9 +80,9 @@ struct RingBufTypeTrait<RingBufType::Mpsc>
 
     static void DelRing(type *r) { Del_MpscRingBuf(r); }
 
-    static ssize_t Push(type *r, void *data, size_t len) { return Try_push_MpscRingBuf(r, data, len); }
+    static ssize_t Push(type *r, void *data, size_t len) { return Push_MpscRingBuf(r, data, len); }
 
-    static ssize_t Pop(type *r, void *out) { return Try_Pop_MpscRingBuf(r, out); }
+    static ssize_t Pop(type *r, void *out) { return Pop_MpscRingBuf(r, out); }
 
     static int Pop_w_cb(type *r, Pop_cb cb, void *args) { return Pop_w_cb_MpscRingBuf(r, cb, args); }
 };
@@ -99,7 +99,7 @@ struct RingBufTypeTrait<RingBufType::Mpmc>
 
     static void DelRing(type *r) { Del_MpmcRingBuf(r); }
 
-    static ssize_t Push(type *r, void *data, size_t len) { return Try_push_MpmcRingBuf(r, data, len); }
+    static ssize_t Push(type *r, void *data, size_t len) { return Push_MpmcRingBuf(r, data, len); }
 
     static int Pop_w_cb(type *r, Pop_cb cb, void *args) { return Pop_w_cb_MpmcRingBuf(r, cb, args); }
 };

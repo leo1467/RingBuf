@@ -19,9 +19,9 @@ void Del_MpmcRingBuf(MpmcRingBuf_t *p)
 }
 
 #if DEBUG
-ssize_t Try_push_MpmcRingBuf(MpmcRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o, size_t size)
+ssize_t Push_MpmcRingBuf(MpmcRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o, size_t size)
 #else
-ssize_t Try_push_MpmcRingBuf(MpmcRingBuf_t *p, void *args, size_t size)
+ssize_t Push_MpmcRingBuf(MpmcRingBuf_t *p, void *args, size_t size)
 #endif
 {
     RingBuf_t *r = (RingBuf_t *) p;
@@ -68,7 +68,7 @@ ssize_t Try_push_MpmcRingBuf(MpmcRingBuf_t *p, void *args, size_t size)
     return expected_head;
 }
 
-ssize_t Try_pop_MpmcRingBuf(MpmcRingBuf_t *p, void *buf)
+ssize_t Pop_MpmcRingBuf(MpmcRingBuf_t *p, void *buf)
 {
     RingBuf_t *r = (RingBuf_t *) p;
 

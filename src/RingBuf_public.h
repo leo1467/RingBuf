@@ -223,7 +223,7 @@ MpscRingBuf_t *Get_MpscRingBuf(const size_t objNum, const size_t objSize, const 
 void Del_MpscRingBuf(MpscRingBuf_t *p);
 
 #if DEBUG
-ssize_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o, size_t size);
+ssize_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o, size_t size);
 #else
 /**
  * Push memory into ring buffer
@@ -235,7 +235,7 @@ ssize_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args, testFunc cb, Time_dif
  * 
  * Return the head index where data was pushed, -1 if full or contention
  */
-ssize_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args, size_t size);
+ssize_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args, size_t size);
 #endif
 
 /**
@@ -246,7 +246,7 @@ ssize_t Try_push_MpscRingBuf(MpscRingBuf_t *p, void *args, size_t size);
  * 
  * Return the tail where been popped, -1 if empty
  */
-ssize_t Try_Pop_MpscRingBuf(MpscRingBuf_t *p, void *buf);
+ssize_t Pop_MpscRingBuf(MpscRingBuf_t *p, void *buf);
 
 /**
  * Execute callback immediately after getting the avalible mem in ring buffer
@@ -303,7 +303,7 @@ MpmcRingBuf_t *Get_MpmcRingBuf(const size_t objNum, const size_t objSize, const 
 void Del_MpmcRingBuf(MpmcRingBuf_t *p);
 
 #if DEBUG
-ssize_t Try_push_MpmcRingBuf(MpmcRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o, size_t size);
+ssize_t Push_MpmcRingBuf(MpmcRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o, size_t size);
 #else
 /**
  * Push memory into ring buffer, producers don't block from each other
@@ -314,7 +314,7 @@ ssize_t Try_push_MpmcRingBuf(MpmcRingBuf_t *p, void *args, testFunc cb, Time_dif
  * 
  * Return the head index where data was pushed, -1 if full or contention
  */
-ssize_t Try_push_MpmcRingBuf(MpmcRingBuf_t *p, void *args, size_t size);
+ssize_t Push_MpmcRingBuf(MpmcRingBuf_t *p, void *args, size_t size);
 #endif
 
 /**
@@ -325,7 +325,7 @@ ssize_t Try_push_MpmcRingBuf(MpmcRingBuf_t *p, void *args, size_t size);
  * 
  * Return the tail index where data was popped, -1 if empty or contention
  */
-ssize_t Try_pop_MpmcRingBuf(MpmcRingBuf_t *p, void *buf);
+ssize_t Pop_MpmcRingBuf(MpmcRingBuf_t *p, void *buf);
 
 /**
  * Execute callback immediately after getting the avalible mem in ring buffer
