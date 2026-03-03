@@ -9,22 +9,22 @@
 #include "RingBuf_public.h"
 
 // ringbuf type
-#define SPSC 0
+#define SPSC 1
 #define MPSC 0
-#define MPMC 1
+#define MPMC 0
 #define BLOCK 0
 
 // for test
 #define YIELD 0          // 1 for push & pop to yield when got NULL
 #define RELAX 1          // 1 for cpu_relax()
-#define PRO_SLEEP 0  // producer sleep ns
+#define PRO_SLEEP 50000  // producer sleep ns
 #define CON_SLEEP 0      // consumer sleep ns
 #define PRO_THD_NUM 2    // producer threads
 #define CON_THD_NUM 2    // consumer threads
 #define BINDCORE 1
 
 // debug use
-#define TIME_TEST 2  // 0 for testing memory integrity, 1 for out side time, 2 for hardware time
+#define TIME_TEST 1  // 0 for testing memory integrity, 1 for out side time, 2 for hardware time
 #define PRINT 0      // print every msg after push and pop
 #define MSG 1        // print msg in Obj::buf
 #define ASSERT 1     // comsumer assert check msg

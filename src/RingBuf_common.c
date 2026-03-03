@@ -18,6 +18,7 @@ typedef struct _SizeInfo {
     size_t slot_off_s;
     size_t slot_off_e;
     size_t total_size;
+    size_t aligned_objSize;  // Object size aligned to cache line to prevent false sharing
 } SizeInfo_t;
 
 const char* RingBuf_strerror(int error_code)
@@ -48,26 +49,30 @@ static size_t get_aligned_offset(size_t base_offset, size_t alignment)
 __attribute__((always_inline)) inline
 static SizeInfo_t get_total_size(const size_t objNum, const size_t objSize, int useSlot)
 {
+    // Align individual object size to cache line to prevent false sharing in multi-threaded scenarios
+    const size_t aligned_objSize = get_aligned_offset(objSize, CACHE_LINE_SIZE);
+
     size_t total_size = 0;
     size_t buffer_offset_start = 0;
     size_t buffer_offset_end = 0;
     size_t slot_offset_start = 0;
     size_t slot_offset_end = 0;
     buffer_offset_start = get_aligned_offset(sizeof(RingBuf_t), CACHE_LINE_SIZE);
-    buffer_offset_end = get_aligned_offset(buffer_offset_start + objSize * objNum, CACHE_LINE_SIZE);
+    buffer_offset_end = get_aligned_offset(buffer_offset_start + aligned_objSize * objNum, CACHE_LINE_SIZE);
     if (useSlot & (MPMC_SLOT | MPSC_SLOT)) {
         slot_offset_start = get_aligned_offset(buffer_offset_end, CACHE_LINE_SIZE);
         slot_offset_end = get_aligned_offset(slot_offset_start + sizeof(Slot_t) * objNum, CACHE_LINE_SIZE);
         total_size = slot_offset_end;
     } else if (useSlot & NO_SLOT) {
-        total_size = buffer_offset_end;;
+        total_size = buffer_offset_end;
     }
 
-    return (SizeInfo_t){.buf_off_s  = buffer_offset_start, 
+    return (SizeInfo_t){.buf_off_s  = buffer_offset_start,
                         .buf_off_e  = buffer_offset_end,
                         .slot_off_s = slot_offset_start,
                         .slot_off_e = slot_offset_end,
-                        .total_size = total_size};
+                        .total_size = total_size,
+                        .aligned_objSize = aligned_objSize};
 }
 
 static void *get_buf_malloc(size_t totalSz, int *fd)
@@ -183,7 +188,7 @@ RingBuf_t *get_buf(const size_t objNum, const size_t objSize, const char *shmPat
         atomic_init(&r->head_, 0);
         // atomic_init(&r->commit_, 0);
         atomic_init(&r->tail_, 0);
-        r->objSize_ = objSize;
+        r->objSize_ = info.aligned_objSize;  // Use cache-line aligned size to prevent false sharing
         r->objNum_ = objNum;
         r->mask_ = objNum - 1;
         r->totalSize_ = info.total_size;
@@ -232,7 +237,9 @@ BRingBuf_t *get_block_buf(const size_t objNum, const size_t objSize, const char 
         return NULL;
     }
 
-    size_t totalSize = sizeof(BRingBuf_t) + objNum * objSize;
+    // Align individual object size to cache line to prevent false sharing
+    const size_t aligned_objSize = get_aligned_offset(objSize, CACHE_LINE_SIZE);
+    size_t totalSize = sizeof(BRingBuf_t) + aligned_objSize * objNum;
 
     int fd = -1;
     void *p = NULL;
@@ -258,27 +265,53 @@ BRingBuf_t *get_block_buf(const size_t objNum, const size_t objSize, const char 
     }
     BRingBuf_t *r = p;
     if (needNew) {
+        int rc = 0;
         if (useSHM) {
             pthread_mutexattr_t mattr;
             pthread_mutexattr_init(&mattr);
             pthread_mutexattr_setpshared(&mattr, PTHREAD_PROCESS_SHARED);
-            pthread_mutex_init(&r->mtx, &mattr);
+            rc = pthread_mutex_init(&r->mtx, &mattr);
             pthread_mutexattr_destroy(&mattr);
+            if (rc != 0) {
+                return NULL;
+            }
 
             pthread_condattr_t cattr;
             pthread_condattr_init(&cattr);
             pthread_condattr_setpshared(&cattr, PTHREAD_PROCESS_SHARED);
-            pthread_cond_init(&r->writeable, &cattr);
-            pthread_cond_init(&r->readable, &cattr);
+            rc = pthread_cond_init(&r->writeable, &cattr);
+            if (rc != 0) {
+                pthread_mutex_destroy(&r->mtx);
+                pthread_condattr_destroy(&cattr);
+                return NULL;
+            }
+            rc = pthread_cond_init(&r->readable, &cattr);
             pthread_condattr_destroy(&cattr);
+            if (rc != 0) {
+                pthread_mutex_destroy(&r->mtx);
+                pthread_cond_destroy(&r->writeable);
+                return NULL;
+            }
         } else {
-            pthread_mutex_init(&r->mtx, NULL);
-            pthread_cond_init(&r->writeable, NULL);
-            pthread_cond_init(&r->readable, NULL);
+            rc = pthread_mutex_init(&r->mtx, NULL);
+            if (rc != 0) {
+                return NULL;
+            }
+            rc = pthread_cond_init(&r->writeable, NULL);
+            if (rc != 0) {
+                pthread_mutex_destroy(&r->mtx);
+                return NULL;
+            }
+            rc = pthread_cond_init(&r->readable, NULL);
+            if (rc != 0) {
+                pthread_mutex_destroy(&r->mtx);
+                pthread_cond_destroy(&r->writeable);
+                return NULL;
+            }
         }
         r->head_ = 0;
         r->tail_ = 0;
-        r->objSize_ = objSize;
+        r->objSize_ = aligned_objSize;  // Use cache-line aligned size to prevent false sharing
         r->objNum_ = objNum;
         r->mask_ = objNum - 1;
         r->totalSize_ = totalSize;
@@ -302,4 +335,57 @@ void del_block_buf(BRingBuf_t *r)
             free(r);
         }
     }
+}
+
+/**
+ * Explicit error handling wrapper functions
+ * These provide a cleaner error handling pattern than relying on errno
+ */
+
+int Get_SpscRingBuf_e(SpscRingBuf_t **out, const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag)
+{
+    if (!out) {
+        return RINGBUF_INVALID_PARAM;
+    }
+    *out = get_buf(objNum, objSize, shmPath, prot, flag, NO_SLOT);
+    if (!*out) {
+        return errno;
+    }
+    return RINGBUF_SUCCESS;
+}
+
+int Get_MpscRingBuf_e(MpscRingBuf_t **out, const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag)
+{
+    if (!out) {
+        return RINGBUF_INVALID_PARAM;
+    }
+    *out = get_buf(objNum, objSize, shmPath, prot, flag, MPSC_SLOT);
+    if (!*out) {
+        return errno;
+    }
+    return RINGBUF_SUCCESS;
+}
+
+int Get_MpmcRingBuf_e(MpmcRingBuf_t **out, const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag)
+{
+    if (!out) {
+        return RINGBUF_INVALID_PARAM;
+    }
+    *out = get_buf(objNum, objSize, shmPath, prot, flag, MPMC_SLOT);
+    if (!*out) {
+        return errno;
+    }
+    return RINGBUF_SUCCESS;
+}
+
+int Get_BlockRingBuf_e(BlockRingBuf_t **out, const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag)
+{
+    if (!out) {
+        return RINGBUF_INVALID_PARAM;
+    }
+    *out = get_block_buf(objNum, objSize, shmPath, prot, flag);
+    if (!*out) {
+        return errno;
+    }
+    return RINGBUF_SUCCESS;
 }

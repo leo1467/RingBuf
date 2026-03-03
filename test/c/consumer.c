@@ -196,6 +196,8 @@ int main()
     Del_MpscRingBuf(r);
 #elif MPMC == 1
     Del_MpmcRingBuf(r);
+#elif BLOCK == 1
+    Del_BlockRingBuf(r);
 #endif
     close(fd);
     munmap(p, TOTAL_SIZE);

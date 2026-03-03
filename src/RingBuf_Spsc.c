@@ -77,8 +77,7 @@ ssize_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args, size_t size)
 {
     RingBuf_t *r = (RingBuf_t *) p;
     if (size > r->objSize_) {
-        errno = RINGBUF_PUSH_SIZE_TOO_LARGE;
-        return errno;
+        return RINGBUF_PUSH_SIZE_TOO_LARGE;
     }
 
     const size_t curr_head = atomic_load_explicit(&r->head_, memory_order_relaxed);
@@ -86,8 +85,7 @@ ssize_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args, size_t size)
         const size_t curr_tail = atomic_load_explicit(&r->tail_, memory_order_acquire);
         local_tail = curr_tail;
         if ((curr_head - local_tail) >= r->objNum_) {
-            errno = RINGBUF_FULL;
-            return errno;
+            return RINGBUF_FULL;
         }
     }
 
@@ -109,8 +107,7 @@ ssize_t Pop_SpscRingBuf(SpscRingBuf_t *p, void *buf)
         const size_t curr_head = atomic_load_explicit(&r->head_, memory_order_acquire);
         local_head = curr_head;
         if ((local_head - curr_tail) == 0) {
-            errno = RINGBUF_EMPTY;
-            return errno;
+            return RINGBUF_EMPTY;
         }
     }
 

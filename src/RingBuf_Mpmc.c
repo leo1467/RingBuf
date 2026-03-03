@@ -26,8 +26,7 @@ ssize_t Push_MpmcRingBuf(MpmcRingBuf_t *p, void *args, size_t size)
 {
     RingBuf_t *r = (RingBuf_t *) p;
     if (size > r->objSize_) {
-        errno = RINGBUF_PUSH_SIZE_TOO_LARGE;
-        return errno;
+        return RINGBUF_PUSH_SIZE_TOO_LARGE;
     }
 
     size_t expected_head = atomic_load_explicit(&r->head_, memory_order_relaxed);  // 取得目前 head
@@ -42,21 +41,18 @@ ssize_t Push_MpmcRingBuf(MpmcRingBuf_t *p, void *args, size_t size)
         /* 假如 thread a 取了 seq ，但突然停住
          * thread b 也進來取到了 expected_head，且也成功取到了 seq，也成功寫入並更新 slot
          * 此時 thread a 又開始動，繼續取 slot，此時更新後的 slot 會比 expected_head 還大 */
-        errno = RINGBUF_CONTENTION;
-        return errno;
+        return RINGBUF_CONTENTION;
     } else if (dif < 0) {
         /* 如果 consumer 速度太慢，producer 繞一圈追上來
          * 因為 slot seq 還沒被 consumer 更新成他的 tail + objNum，所以 head 會比較大 */
-        errno = RINGBUF_FULL;
-        return errno;
+        return RINGBUF_FULL;
     }
 
     size_t desired = expected_head + 1;
     // 只有成功把 head + 1 的人才有寫入權
     if (!atomic_compare_exchange_strong_explicit(&r->head_, &expected_head, desired, memory_order_acq_rel, memory_order_relaxed)) {
         // CAS 失敗，head 已被其他 producer 更新，重試
-        errno = RINGBUF_CONTENTION;
-        return errno;
+        return RINGBUF_CONTENTION;
     }
 #if DEBUG
     cb(arr, expected_head, buf, (Obj *) args);
@@ -83,21 +79,18 @@ ssize_t Pop_MpmcRingBuf(MpmcRingBuf_t *p, void *buf)
         /* 假如 thread a 取了 seq ，但突然停住
          * thread b 也進來取到了 expected_tail，且也成功取到了 seq，也成功寫入並更新 slot
          * 此時 thread a 又開始動，繼續取 slot，此時更新後的 slot 會比 expected_tail + 1 還大 */
-        errno = RINGBUF_CONTENTION;
-        return errno;
+        return RINGBUF_CONTENTION;
     } else if (dif < 0) {
         /* 如果 producer 速度太慢，consumer 追上來
          * 因為 slot seq 還沒被 producer 更新成他的 head + 1，所以 expected_tail + 1 會比較大 */
-        errno = RINGBUF_EMPTY;
-        return errno;
+        return RINGBUF_EMPTY;
     }
 
     size_t desired = expected_tail + 1;
     /* 只有成功把 tail + 1 的人才有寫入權 */
     if (!atomic_compare_exchange_strong_explicit(&r->tail_, &expected_tail, desired, memory_order_acq_rel, memory_order_relaxed)) {
         /* CAS 失敗，tail 已被其他 consumer 更新 */
-        errno = RINGBUF_CONTENTION;
-        return errno;
+        return RINGBUF_CONTENTION;
     }
     memcpy(buf, &GET_BUFFER(r)[idx * r->objSize_], r->objSize_);
 
@@ -121,21 +114,18 @@ int Pop_w_cb_MpmcRingBuf(MpmcRingBuf_t *p, Pop_cb cb, void *args)
         /* 假如 thread a 取了 seq ，但突然停住
          * thread b 也進來取到了 expected_tail，且也成功取到了 seq，也成功寫入並更新 slot
          * 此時 thread a 又開始動，繼續取 slot，此時更新後的 slot 會比 expected_tail + 1 還大 */
-        errno = RINGBUF_CONTENTION;
-        return errno;
+        return RINGBUF_CONTENTION;
     } else if (dif < 0) {
         /* 如果 producer 速度太慢，consumer 追上來
          * 因為 slot seq 還沒被 producer 更新成他的 head + 1，所以 expected_tail + 1 會比較大 */
-        errno = RINGBUF_EMPTY;
-        return errno;
+        return RINGBUF_EMPTY;
     }
 
     size_t desired = expected_tail + 1;
     /* 只有成功把 tail + 1 的人才有寫入權 */
     if (!atomic_compare_exchange_strong_explicit(&r->tail_, &expected_tail, desired, memory_order_acq_rel, memory_order_relaxed)) {
         /* CAS 失敗，tail 已被其他 consumer 更新 */
-        errno = RINGBUF_CONTENTION;
-        return errno;
+        return RINGBUF_CONTENTION;
     }
     int rc = cb(&GET_BUFFER(r)[idx * r->objSize_], args);
 

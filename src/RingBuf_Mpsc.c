@@ -28,19 +28,16 @@ ssize_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args, size_t size)
 {
     RingBuf_t *r = (RingBuf_t *) p;
     if (size > r->objSize_) {
-        errno = RINGBUF_PUSH_SIZE_TOO_LARGE;
-        return errno;
+        return RINGBUF_PUSH_SIZE_TOO_LARGE;
     }
 
     size_t expected_head = atomic_load_explicit(&r->head_, memory_order_acquire);
     size_t curr_tail = atomic_load_explicit(&r->tail_, memory_order_acquire);
     if (expected_head - curr_tail >= r->objNum_) {
-        errno = RINGBUF_FULL;
-        return errno;
+        return RINGBUF_FULL;
     }
     if (!atomic_compare_exchange_strong_explicit(&r->head_, &expected_head, expected_head + 1, memory_order_acq_rel, memory_order_relaxed)) {
-        errno = RINGBUF_CONTENTION;
-        return errno;
+        return RINGBUF_CONTENTION;
     }
 #if DEBUG
     cb(arr, expected_head, buf, o);
@@ -58,21 +55,18 @@ ssize_t Pop_MpscRingBuf(MpscRingBuf_t *p, void *buf)
     if ((local_head - curr_tail) == 0) {
         local_head = atomic_load_explicit(&r->head_, memory_order_acquire);
         if ((local_head - curr_tail) == 0) {
-            errno = RINGBUF_EMPTY;
-            return errno;
+            return RINGBUF_EMPTY;
         }
     }
 
     const size_t idx = curr_tail & r->mask_;
     const enum SlotStat slot_stat = atomic_load_explicit(&GET_SLOT(r, idx), memory_order_acquire);
     if (slot_stat & SLOT_EMPTY) {
-        errno = RINGBUF_SLOT_WRITING_DATA;
-        return errno;
+        return RINGBUF_SLOT_WRITING_DATA;
     } else if (slot_stat & SLOT_UNKNOWN) {
         atomic_store_explicit(&GET_SLOT(r, idx), SLOT_EMPTY, memory_order_relaxed);
         atomic_store_explicit(&r->tail_, curr_tail + 1, memory_order_release);
-        errno = RINGBUF_SLOT_STAT_UNKNOWN;
-        return errno;
+        return RINGBUF_SLOT_STAT_UNKNOWN;
     }
 
     memcpy(buf, &GET_BUFFER(r)[idx * r->objSize_], r->objSize_);
@@ -87,20 +81,17 @@ int Pop_w_cb_MpscRingBuf(MpscRingBuf_t *p, Pop_cb cb, void *args)
     const size_t curr_head = atomic_load_explicit(&r->head_, memory_order_acquire);
     const size_t curr_tail = atomic_load_explicit(&r->tail_, memory_order_relaxed);
     if (curr_tail == curr_head) {
-        errno = RINGBUF_EMPTY;
-        return errno;
+        return RINGBUF_EMPTY;
     }
 
     const size_t idx = curr_tail & r->mask_;
     const enum SlotStat slot_stat = atomic_load_explicit(&GET_SLOT(r, idx), memory_order_acquire);
     if (slot_stat & SLOT_EMPTY) {
-        errno = RINGBUF_SLOT_WRITING_DATA;
-        return errno;
+        return RINGBUF_SLOT_WRITING_DATA;
     } else if (slot_stat & SLOT_UNKNOWN) {
         atomic_store_explicit(&GET_SLOT(r, idx), SLOT_EMPTY, memory_order_relaxed);
         atomic_store_explicit(&r->tail_, curr_tail + 1, memory_order_release);
-        errno = RINGBUF_SLOT_STAT_UNKNOWN;
-        return errno;
+        return RINGBUF_SLOT_STAT_UNKNOWN;
     }
 
     int rc = cb(&GET_BUFFER(r)[idx * r->objSize_], args);
