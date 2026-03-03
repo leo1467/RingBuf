@@ -1,4 +1,4 @@
-TARGET=producer consumer
+TARGET=producer consumer test
 
 SRCFILES=$(wildcard *.c)
 OBJS=$(patsubst %.c, %.o, $(SRCFILES))
@@ -10,13 +10,11 @@ CCFLAG=-Wall -g -Ofast -DDEBUG
 USR_LOCAL_LIB=${HOME}/.local
 
 INCLUDEDIR=-I. \
-		   -I$(HOME)/workspace/NuLib/include \
 		   -I../../include
 
-LIBDIR=-L$(HOME)/workspace/NuLib/bin \
-	   -L../../bin/static
+LIBDIR=-L../../bin/static
 
-LIBS=-lpthread -lNuUtil -D_GNU_SOURCE -lRingBuf -lm
+LIBS=-lpthread -D_GNU_SOURCE -lRingBuf -lm
 
 COMPILE=$(CC) $(CCFLAG)
 
@@ -31,10 +29,6 @@ consumer:consumer.o
 	$(COMPILE) $^ $(LIBDIR) $(LIBS) -o $@
 
 test:test.o
-	@echo === LINK $^ ===
-	$(COMPILE) $^ $(LIBDIR) $(LIBS) -o $@
-
-test1:test1.o
 	@echo === LINK $^ ===
 	$(COMPILE) $^ $(LIBDIR) $(LIBS) -o $@
 

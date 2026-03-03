@@ -2,9 +2,15 @@
 *.png
 *.data
 .cache
-compile_commands.json
 *.tmp
 *.swp
+*.o
 tmp
 bin
 include
+compile_commands.json
+*.zip
+x
+consumer
+producer
+test/c/test

@@ -1,3 +1,10 @@
+#
+# @(#)Makefile
+#
+# Modification History:
+#
+#
+# Makefile for Linux platform
 TMPDIR=../tmp/
 BINDIR_DYNAMIC=../bin/dynamic/
 BINDIR_STATIC=../bin/static/
@@ -114,6 +121,14 @@ LINK2:
 		cd $(BINDIR); \
 		ln -sf $(LINK1) $(LINK2); \
 	fi
+
+scan: 
+	@echo "---- fortify scan $(ScanTarget) ----"; \
+	d=$$(date +%s); \
+	sourceanalyzer -b $(ScanTarget) -clean; \
+	make clean; sourceanalyzer -Xmx4G -Xss1G -b $(ScanTarget) make -j 10 install; \
+	sourceanalyzer -Xmx4G -Xss1G -f ../$(ScanTarget).fpr -b $(ScanTarget) -scan -mt; \
+    echo "Build and Scan took $$(($$(date +%s)-d)) seconds"
 
 debug:
 	$(MAKE) BUILD=debug

@@ -2,6 +2,7 @@
 
 #include <cerrno>
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <functional>
@@ -12,15 +13,13 @@
 
 #include "RingBuf_public.h"
 
-#define my_assert(expr, fmt, ...)                                                                  \
-    do {                                                                                           \
-        if (!(expr)) {                                                                             \
-            std::fprintf(stderr,                                                                   \
-                         "Assertion failed: (%s)\nFile: %s, Line: %d, Function: %s\nMessage: " fmt \
-                         "\n",                                                                     \
-                         #expr, __FILE__, __LINE__, __func__, ##__VA_ARGS__);                      \
-            std::abort();                                                                          \
-        }                                                                                          \
+#define my_assert(expr, fmt, ...)                                                                                \
+    do {                                                                                                         \
+        if (!(expr)) {                                                                                           \
+            std::fprintf(stderr, "Assertion failed: (%s)\nFile: %s, Line: %d, Function: %s\nMessage: " fmt "\n", \
+                         #expr, __FILE__, __LINE__, __func__, ##__VA_ARGS__);                                    \
+            std::abort();                                                                                        \
+        }                                                                                                        \
     } while (0)
 
 namespace RingBufWrapper
@@ -29,16 +28,20 @@ namespace RingBufWrapper
 struct RingBufType
 {
     struct Spsc
-    {};
+    {
+    };
 
     struct Mpsc
-    {};
+    {
+    };
 
     struct Mpmc
-    {};
+    {
+    };
 
-    struct Blocked
-    {};
+    struct Block
+    {
+    };
 };
 
 template <typename RingTypeTag>
@@ -54,30 +57,19 @@ struct RingBufTypeTrait<RingBufType::Spsc>
         return Get_SpscRingBuf(n, objSize, path, prot, flag);
     }
 
-    static void DelRing(type *r)
-    {
-        Del_SpscRingBuf(r);
-    }
+    static void DelRing(type *r) { Del_SpscRingBuf(r); }
 
-    static ssize_t Push(type *r, void *data, size_t len)
-    {
-        return Push_SpscRingBuf(r, data, len);
-    }
+    static ssize_t Push(type *r, void *data, size_t len) { return Push_SpscRingBuf(r, data, len); }
 
-    static ssize_t Pop(type *r, void *out)
-    {
-        return Pop_SpscRingBuf(r, out);
-    }
+    static ssize_t Pop(type *r, void *out) { return Pop_SpscRingBuf(r, out); }
 
-    static void *BeginPop(type *r)
-    {
-        return Begin_pop_SpscRingBuf(r);
-    }
+    static void *BeginPush(type *r) { return Begin_push_SpscRingBuf(r); }
 
-    static void EndPop(type *r)
-    {
-        End_pop_SpscRingBuf(r);
-    }
+    static void EndPush(type *r) { return End_push_SpscRingBuf(r); }
+
+    static void *BeginPop(type *r) { return Begin_pop_SpscRingBuf(r); }
+
+    static void EndPop(type *r) { End_pop_SpscRingBuf(r); }
 };
 
 template <>
@@ -90,30 +82,13 @@ struct RingBufTypeTrait<RingBufType::Mpsc>
         return Get_MpscRingBuf(n, objSize, path, prot, flag);
     }
 
-    static void DelRing(type *r)
-    {
-        Del_MpscRingBuf(r);
-    }
+    static void DelRing(type *r) { Del_MpscRingBuf(r); }
 
-    static ssize_t Push(type *r, void *data, size_t len)
-    {
-        return Push_MpscRingBuf(r, data, len);
-    }
+    static ssize_t Push(type *r, void *data, size_t len) { return Push_MpscRingBuf(r, data, len); }
 
-    static ssize_t TryPush(type *r, void *data, size_t len)
-    {
-        return Try_push_MpscRingBuf(r, data, len);
-    }
+    static ssize_t Pop(type *r, void *out) { return Pop_MpscRingBuf(r, out); }
 
-    static ssize_t Pop(type *r, void *out)
-    {
-        return Pop_MpscRingBuf(r, out);
-    }
-
-    static int Pop_w_cb(type *r, Pop_cb cb, void *args)
-    {
-        return Pop_w_cb_MpscRingBuf(r, cb, args);
-    }
+    static int Pop_w_cb(type *r, Pop_cb cb, void *args) { return Pop_w_cb_MpscRingBuf(r, cb, args); }
 };
 
 template <>
@@ -126,51 +101,28 @@ struct RingBufTypeTrait<RingBufType::Mpmc>
         return Get_MpmcRingBuf(n, objSize, path, prot, flag);
     }
 
-    static void DelRing(type *r)
-    {
-        Del_MpmcRingBuf(r);
-    }
+    static void DelRing(type *r) { Del_MpmcRingBuf(r); }
 
-    static ssize_t Push(type *r, void *data, size_t len)
-    {
-        return Try_push_MpmcRingBuf(r, data, len);
-    }
+    static ssize_t Push(type *r, void *data, size_t len) { return Push_MpmcRingBuf(r, data, len); }
 
-    static ssize_t Pop(type *r, void *out)
-    {
-        return Try_pop_MpmcMpscRingBuf(r, out);
-    }
-
-    static int Pop_w_cb(type *r, Pop_cb cb, void *args)
-    {
-        return Pop_w_cb_MpmcRingBuf(r, cb, args);
-    }
+    static int Pop_w_cb(type *r, Pop_cb cb, void *args) { return Pop_w_cb_MpmcRingBuf(r, cb, args); }
 };
 
 template <>
-struct RingBufTypeTrait<RingBufType::Blocked>
+struct RingBufTypeTrait<RingBufType::Block>
 {
-    using type = BlockedRingBuf_t;
+    using type = BlockRingBuf_t;
 
     static type *GetRing(const size_t n, const size_t objSize, const char *path, int prot, int flag)
     {
-        return Get_BlockedRingBuf(n, objSize, path, prot, flag);
+        return Get_BlockRingBuf(n, objSize, path, prot, flag);
     }
 
-    static void DelRing(type *r)
-    {
-        Del_BlockedRingBuf(r);
-    }
+    static void DelRing(type *r) { Del_BlockRingBuf(r); }
 
-    static ssize_t Push(type *r, void *data, size_t len)
-    {
-        return Push_BlockedRingBuf(r, data, len);
-    }
+    static ssize_t Push(type *r, void *data, size_t len) { return Push_BlockRingBuf(r, data, len); }
 
-    static ssize_t Pop(type *r, void *out)
-    {
-        return Pop_BlockedRingBuf(r, out);
-    }
+    static ssize_t Pop(type *r, void *out) { return Pop_BlockRingBuf(r, out); }
 };
 
 template <typename T, typename... Options>
@@ -179,21 +131,14 @@ inline constexpr bool is_one_of_v = (std::is_same_v<T, Options> || ...);
 template <typename RingType, typename Obj, size_t ObjNum>
 class RingBuf final : private RingBufTypeTrait<RingType>
 {
-    static_assert(is_one_of_v<RingType,
-                              RingBufType::Spsc,
-                              RingBufType::Mpsc,
-                              RingBufType::Mpmc,
-                              RingBufType::Blocked>,
+    static_assert(is_one_of_v<RingType, RingBufType::Spsc, RingBufType::Mpsc, RingBufType::Mpmc, RingBufType::Block>,
                   "RingType wrong");
     static_assert((ObjNum >= 2) && ((ObjNum & (ObjNum - 1)) == 0), "ObjNum need to be power of 2");
 
     using Base = RingBufTypeTrait<RingType>;
 
 public:
-    typename Base::type *Get_RingBuf() const noexcept
-    {
-        return r_;
-    }
+    typename Base::type *Get_RingBuf() const noexcept { return r_; }
 
     template <typename T>
     ssize_t Push(T &&obj) noexcept
@@ -202,10 +147,7 @@ public:
         return Base::Push(r_, const_cast<void *>(static_cast<const void *>(&obj)), sizeof(Obj));
     }
 
-    ssize_t Push(void *data, size_t size)
-    {
-        return Base::Push(r_, data, size);
-    }
+    ssize_t Push(void *data, size_t size) { return Base::Push(r_, data, size); }
 
     template <typename T>
     ssize_t Pop(T &obj) noexcept
@@ -215,27 +157,31 @@ public:
     }
 
     // Callable-based pop with trampoline (requires synchronous callback invocation by C layer)
-    template <typename R = RingType,
-              typename Callable,
-              typename... Args,
-              typename = std::enable_if_t<
-                  is_one_of_v<R, RingBufType::Mpsc, RingBufType::Mpmc, RingBufType::Spsc>>>
-    auto Pop_w_cb(Callable &&callback, Args &&...args)
+    template <typename R = RingType, typename Callable, typename... Args>
+    ssize_t Pop_w_cb(Callable &&callback, Args &&...args)
     {
-        constexpr auto is_fast_path =
-            (sizeof...(Args) == 1) &&
-            std::is_convertible_v<std::tuple_element_t<0, std::tuple<Args...>>, void *> &&
-            std::is_convertible_v<Callable, Pop_cb>;
+        constexpr auto is_fast_path = (sizeof...(Args) == 1) &&
+                                      std::is_convertible_v<std::tuple_element_t<0, std::tuple<Args...>>, void *> &&
+                                      std::is_convertible_v<Callable, Pop_cb>;
         /* 只有一個參數，且參數是void *，且cb是int(void *, void *)，才會進來 */
         if constexpr (is_fast_path) {
             auto &first_arg = std::get<0>(std::forward_as_tuple(args...));
             if constexpr (is_one_of_v<R, RingBufType::Mpsc, RingBufType::Mpmc>) {
                 return Base::Pop_w_cb(r_, callback, first_arg);
-            } else {
+            } else if constexpr (std::is_same_v<R, RingBufType::Spsc>) {
                 void *p = Base::BeginPop(r_);
                 int rc = callback(p, first_arg);
                 Base::EndPop(r_);
                 return rc;
+            } else if constexpr (std::is_same_v<R, RingBufType::Block>) {
+                Obj obj{};
+                int rc = Base::Pop(r_, reinterpret_cast<void *>(&obj));
+                if (rc < 0) {
+                    return rc;
+                }
+                return callback(reinterpret_cast<void *>(&obj), first_arg);
+            } else {
+                return -1;
             }
         } else {
             auto user_args_tuple = std::forward_as_tuple(std::forward<Args>(args)...);
@@ -257,8 +203,7 @@ public:
                 **/
                 return std::apply(
                     [&](auto &&...unpacked_args) {
-                        return std::invoke(ctx->cpp_callback, static_cast<Obj *>(obj_in_buf),
-                                           unpacked_args...);
+                        return std::invoke(ctx->cpp_callback, static_cast<Obj *>(obj_in_buf), unpacked_args...);
                     },
                     ctx->user_args);
             };
@@ -275,17 +220,7 @@ public:
         }
     }
 
-    template <typename R = RingType,
-              typename = std::enable_if_t<std::is_same_v<R, RingBufType::Mpmc>>>
-    ssize_t Pop_MpmcMpscRingBuf(Obj &obj) noexcept
-    {
-        return Try_pop_MpmcMpscRingBuf(r_, reinterpret_cast<void *>(&obj));
-    }
-
-    const char *Get_RingBuf_strerror(int err) const noexcept
-    {
-        return RingBuf_strerror(err);
-    }
+    const char *Get_RingBuf_strerror(int err) const noexcept { return RingBuf_strerror(err); }
 
     int Init(const char *shmPath, int prot, int flag)
     {
@@ -294,10 +229,7 @@ public:
         return (r_ ? 0 : -1);
     }
 
-    explicit RingBuf(const char *shmPath, int prot, int flag)
-    {
-        Init(shmPath, prot, flag);
-    }
+    explicit RingBuf(const char *shmPath, int prot, int flag) { Init(shmPath, prot, flag); }
 
     RingBuf() = default;
     ~RingBuf() = default;
@@ -312,10 +244,7 @@ private:
 
     struct dter
     {
-        void operator()(typename Base::type *r) const noexcept
-        {
-            Base::DelRing(r);
-        }
+        void operator()(typename Base::type *r) const noexcept { Base::DelRing(r); }
     };
 };
 

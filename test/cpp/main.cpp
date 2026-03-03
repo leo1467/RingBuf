@@ -68,14 +68,14 @@ int main()
 {
     Obj o = 9;
     // auto start = std::chrono::steady_clock::now();
-    // func<RW::RingBuf<RW::RingBufType::Spsc, Obj, ObjNum>>(o, Loop);
-    // func<RW::RingBuf<RW::RingBufType::Mpsc, Obj, ObjNum>>(o, Loop);
-    // func<RW::RingBuf<RW::RingBufType::Mpmc, Obj, ObjNum>>(o, Loop);
-    // func<RW::RingBuf<RW::RingBufType::Blocked, Obj, ObjNum>>(o, Loop);
+    func<RW::RingBuf<RW::RingBufType::Spsc, Obj, ObjNum>>(o, Loop);
+    func<RW::RingBuf<RW::RingBufType::Mpsc, Obj, ObjNum>>(o, Loop);
+    func<RW::RingBuf<RW::RingBufType::Mpmc, Obj, ObjNum>>(o, Loop);
+    func<RW::RingBuf<RW::RingBufType::Block, Obj, ObjNum>>(o, Loop);
     // auto end = std::chrono::steady_clock::now();
     // std::cout << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << std::endl;
 
-    RW::RingBuf<RW::RingBufType::Blocked, Obj, ObjNum> r;
+    RW::RingBuf<RW::RingBufType::Block, Obj, ObjNum> r;
     // RW::RingBuf<RW::RingBufType::Mpmc, Obj, ObjNum> r1;
     // RW::RingBuf<RW::RingBufType::Mpsc, Obj, ObjNum> r2;
     // RW::RingBuf<RW::RingBufType::Spsc, Obj, ObjNum> r3;

@@ -6,16 +6,15 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
-#include "RingBuf_private.h"
 #include "RingBuf_public.h"
+#include "RingBuf_private.h"
 
-SpscRingBuf_t *Get_SpscRingBuf(const size_t objNum,
-                               const size_t objSize,
-                               const char *shmPath,
-                               int prot,
-                               int flag)
+static __thread size_t local_head = 0;
+static __thread size_t local_tail = 0;
+
+SpscRingBuf_t *Get_SpscRingBuf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag)
 {
-    return (SpscRingBuf_t *) get_buf(objNum, objSize, shmPath, prot, flag, NO_SLOT);
+    return (SpscRingBuf_t* ) get_buf(objNum, objSize, shmPath, prot, flag, NO_SLOT);
 }
 
 void Del_SpscRingBuf(SpscRingBuf_t *p)
@@ -27,10 +26,15 @@ void *Begin_push_SpscRingBuf(SpscRingBuf_t *p)
 {
     RingBuf_t *r = (RingBuf_t *) p;
     const size_t curr_head = atomic_load_explicit(&r->head_, memory_order_relaxed);
-    const size_t curr_tail = atomic_load_explicit(&r->tail_, memory_order_acquire);
-    if ((curr_head - curr_tail) >= r->objNum_) {
-        return NULL;
+    
+    if (curr_head - local_tail >= r->objNum_) {
+        const size_t curr_tail = atomic_load_explicit(&r->tail_, memory_order_acquire);
+        local_tail = curr_tail;
+        if ((curr_head - local_tail) >= r->objNum_) {
+            return NULL;
+        }
     }
+
     const size_t idx = curr_head & r->mask_;
     return &GET_BUFFER(r)[idx * r->objSize_];
 }
@@ -46,10 +50,14 @@ void *Begin_pop_SpscRingBuf(SpscRingBuf_t *p)
 {
     RingBuf_t *r = (RingBuf_t *) p;
     const size_t curr_tail = atomic_load_explicit(&r->tail_, memory_order_relaxed);
-    const size_t curr_head = atomic_load_explicit(&r->head_, memory_order_acquire);
-    if ((curr_head - curr_tail) == 0) {
-        return NULL;
+    if ((local_head - curr_tail) == 0) {
+        const size_t curr_head = atomic_load_explicit(&r->head_, memory_order_acquire);
+        local_head = curr_head;
+        if ((local_head - curr_tail) == 0) {
+            return NULL;
+        }
     }
+
     const size_t idx = curr_tail & r->mask_;
     return &GET_BUFFER(r)[idx * r->objSize_];
 }
@@ -62,13 +70,7 @@ void End_pop_SpscRingBuf(SpscRingBuf_t *p)
 }
 
 #if DEBUG
-ssize_t Push_SpscRingBuf(SpscRingBuf_t *p,
-                         void *args,
-                         testFunc cb,
-                         Time_diff_t *arr,
-                         char buf[],
-                         Obj *o,
-                         size_t size)
+ssize_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args, testFunc cb, Time_diff_t *arr, char buf[], Obj *o, size_t size)
 #else
 ssize_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args, size_t size)
 #endif
@@ -78,15 +80,22 @@ ssize_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args, size_t size)
         errno = RINGBUF_PUSH_SIZE_TOO_LARGE;
         return errno;
     }
+
     const size_t curr_head = atomic_load_explicit(&r->head_, memory_order_relaxed);
-    while ((curr_head - (atomic_load_explicit(&r->tail_, memory_order_acquire))) >= r->objNum_) {
-        cpu_relax();
+    if (curr_head - local_tail >= r->objNum_) {
+        const size_t curr_tail = atomic_load_explicit(&r->tail_, memory_order_acquire);
+        local_tail = curr_tail;
+        if ((curr_head - local_tail) >= r->objNum_) {
+            errno = RINGBUF_FULL;
+            return errno;
+        }
     }
+
 #if DEBUG
     cb(arr, curr_head, buf, o);
 #endif
     const size_t idx = curr_head & r->mask_;
-    memcpy(&GET_BUFFER(r)[idx * r->objSize_], args, r->objSize_);
+    memcpy(&GET_BUFFER(r)[idx * r->objSize_], args, size);
     atomic_store_explicit(&r->head_, curr_head + 1, memory_order_release);
     return curr_head;
 }
@@ -94,11 +103,17 @@ ssize_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args, size_t size)
 ssize_t Pop_SpscRingBuf(SpscRingBuf_t *p, void *buf)
 {
     RingBuf_t *r = (RingBuf_t *) p;
-    const size_t curr_head = atomic_load_explicit(&r->head_, memory_order_acquire);
+
     const size_t curr_tail = atomic_load_explicit(&r->tail_, memory_order_relaxed);
-    if (curr_tail == curr_head) {
-        return -1;
+    if ((local_head - curr_tail) == 0) {
+        const size_t curr_head = atomic_load_explicit(&r->head_, memory_order_acquire);
+        local_head = curr_head;
+        if ((local_head - curr_tail) == 0) {
+            errno = RINGBUF_EMPTY;
+            return errno;
+        }
     }
+
     const size_t idx = curr_tail & r->mask_;
     memcpy(buf, &GET_BUFFER(r)[idx * r->objSize_], r->objSize_);
     atomic_store_explicit(&r->tail_, curr_tail + 1, memory_order_release);

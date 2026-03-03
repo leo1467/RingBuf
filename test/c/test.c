@@ -8,6 +8,7 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <unistd.h>
+#include <linux/mman.h>
 
 #include "RingBuf_public.h"
 #include "RingBuf_private.h"
@@ -17,18 +18,24 @@
 // #define FLAGS (MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB)
 #define FLAGS (MAP_SHARED | MAP_HUGETLB)
 
-typedef struct Obj
-{
-    char c[1024];
-} Obj;
+#define SHM_PATH "/dev/shm/t"
+#define OBJ_NUM 1024
 
 int test()
 {
     printf("%lu\n", offsetof(RingBuf_t, head_));
-    printf("%lu\n", offsetof(RingBuf_t, commit_));
     printf("%lu\n", offsetof(RingBuf_t, tail_));
     printf("%lu\n", offsetof(RingBuf_t, objSize_));
     printf("%lu\n", sizeof(RingBuf_t));
+
+    printf("%lu\n", offsetof(BRingBuf_t, head_));
+    printf("%lu\n", offsetof(BRingBuf_t, tail_));
+    printf("%lu\n", offsetof(BRingBuf_t, mtx));
+    printf("%lu\n", offsetof(BRingBuf_t, writeable));
+    printf("%lu\n", offsetof(BRingBuf_t, readable));
+    printf("%lu\n", offsetof(BRingBuf_t, objSize_));
+    printf("%lu\n", offsetof(BRingBuf_t, objNum_));
+    printf("%lu\n", sizeof(BRingBuf_t));
 
     // void *addr = mmap(NULL, LENGTH, PROT, FLAGS, -1, 0);
     // if (addr == MAP_FAILED) {
@@ -38,6 +45,7 @@ int test()
     // memset(addr, 0, 1024);
     // printf("Hugepage memory mapped at %p\n", addr);
     getchar();
+    return 0;
 }
 
 int test1()
@@ -67,6 +75,7 @@ int test2()
         return 1;
     }
 
+    // void *addr = mmap(NULL, LENGTH, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_HUGETLB, fd, 0);
     void *addr = mmap(NULL, LENGTH, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_HUGETLB, fd, 0);
 
     if (addr == MAP_FAILED) {
@@ -89,8 +98,33 @@ void test3()
     printf("%ld\n", total); 
 }
 
+void test4()
+{
+
+    void *r = Get_SpscRingBuf(OBJ_NUM, sizeof(Obj), SHM_PATH, MAP_NEW | MAP_SHM, 0);
+    r = Get_MpscRingBuf(OBJ_NUM, sizeof(Obj), SHM_PATH, MAP_NEW | MAP_SHM, 0);
+    r = Get_MpmcRingBuf(OBJ_NUM, sizeof(Obj), SHM_PATH, MAP_NEW | MAP_SHM, 0);
+    r = Get_BlockRingBuf(OBJ_NUM, sizeof(Obj), SHM_PATH, MAP_NEW | MAP_SHM, 0);
+}
+
+__attribute__((always_inline)) inline
+static size_t get_aligned_offset(size_t base_offset, size_t alignment)
+{
+    return (base_offset + alignment - 1) & ~(alignment - 1);
+}
+
+typedef struct _Obj_
+{
+    char c[16];
+} Obj_t;
+
 int main(int argc, char *argv[])
 {
-    test();
+    // test();
+    // test1();
+    // test2();
+    // test4();
+
+    MpscRingBuf_t *r = Get_MpscRingBuf(2, sizeof(Obj_t), SHM_PATH, MAP_NEW | MAP_SHM, 0);
     return 0;
 };
