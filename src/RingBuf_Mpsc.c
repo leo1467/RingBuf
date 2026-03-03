@@ -45,7 +45,7 @@ ssize_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args, size_t size)
 #endif
     const size_t idx = expected_head & r->mask_;
     memcpy(&GET_BUFFER(r)[idx * r->objSize_], args, r->objSize_);
-    atomic_store_explicit(&GET_SLOT(r)[idx], SLOT_VALID, memory_order_release);
+    atomic_store_explicit(&GET_SLOT(r, idx), SLOT_VALID, memory_order_release);
     return expected_head;
 }
 
@@ -59,19 +59,19 @@ ssize_t Pop_MpscRingBuf(MpscRingBuf_t *p, void *buf)
         return errno;
     }
     const size_t idx = curr_tail & r->mask_;
-    const enum SlotStat slot_stat = atomic_load_explicit(&GET_SLOT(r)[idx], memory_order_acquire);
+    const enum SlotStat slot_stat = atomic_load_explicit(&GET_SLOT(r, idx), memory_order_acquire);
     if (slot_stat & SLOT_EMPTY) {
         errno = RINGBUF_SLOT_WRITING_DATA;
         return errno;
     } else if (slot_stat & SLOT_UNKNOWN) {
-        atomic_store_explicit(&GET_SLOT(r)[idx], SLOT_EMPTY, memory_order_relaxed);
+        atomic_store_explicit(&GET_SLOT(r, idx), SLOT_EMPTY, memory_order_relaxed);
         atomic_store_explicit(&r->tail_, curr_tail + 1, memory_order_release);
         errno = RINGBUF_SLOT_STAT_UNKNOWN;
         return errno;
     }
 
     memcpy(buf, &GET_BUFFER(r)[idx * r->objSize_], r->objSize_);
-    atomic_store_explicit(&GET_SLOT(r)[idx], SLOT_EMPTY, memory_order_relaxed);
+    atomic_store_explicit(&GET_SLOT(r, idx), SLOT_EMPTY, memory_order_relaxed);
     atomic_store_explicit(&r->tail_, curr_tail + 1, memory_order_release);
     return curr_tail;
 }
@@ -87,19 +87,19 @@ int Pop_w_cb_MpscRingBuf(MpscRingBuf_t *p, Pop_cb cb, void *args)
     }
 
     const size_t idx = curr_tail & r->mask_;
-    const enum SlotStat slot_stat = atomic_load_explicit(&GET_SLOT(r)[idx], memory_order_acquire);
+    const enum SlotStat slot_stat = atomic_load_explicit(&GET_SLOT(r, idx), memory_order_acquire);
     if (slot_stat & SLOT_EMPTY) {
         errno = RINGBUF_SLOT_WRITING_DATA;
         return errno;
     } else if (slot_stat & SLOT_UNKNOWN) {
-        atomic_store_explicit(&GET_SLOT(r)[idx], SLOT_EMPTY, memory_order_relaxed);
+        atomic_store_explicit(&GET_SLOT(r, idx), SLOT_EMPTY, memory_order_relaxed);
         atomic_store_explicit(&r->tail_, curr_tail + 1, memory_order_release);
         errno = RINGBUF_SLOT_STAT_UNKNOWN;
         return errno;
     }
 
     int rc = cb(&GET_BUFFER(r)[idx * r->objSize_], args);
-    atomic_store_explicit(&GET_SLOT(r)[idx], SLOT_EMPTY, memory_order_relaxed);
+    atomic_store_explicit(&GET_SLOT(r, idx), SLOT_EMPTY, memory_order_relaxed);
     atomic_store_explicit(&r->tail_, curr_tail + 1, memory_order_release);
     return rc;
 }

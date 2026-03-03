@@ -18,3 +18,4 @@ test/c/test
 test/c/test.c
 test/cpp/test
 *.fpr
+*perf*

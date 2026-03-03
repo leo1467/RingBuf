@@ -32,7 +32,7 @@ ssize_t Push_MpmcRingBuf(MpmcRingBuf_t *p, void *args, size_t size)
 
     size_t expected_head = atomic_load_explicit(&r->head_, memory_order_relaxed);  // 取得目前 head
     size_t idx = expected_head & r->mask_;
-    size_t seq = atomic_load_explicit(&GET_SLOT(r)[idx], memory_order_acquire);  // 讀取 slot seq
+    size_t seq = atomic_load_explicit(&GET_SLOT(r, idx), memory_order_acquire);  // 讀取 slot seq
 
     /* consumer 讀完之後會把 slot 內的 seq 設為 consumer 當下拿到的 tail + objNum
      * producer 繞了一圈會回到這格，如果 buf 這格是空的，slot seq 會等於 head */
@@ -64,7 +64,7 @@ ssize_t Push_MpmcRingBuf(MpmcRingBuf_t *p, void *args, size_t size)
     memcpy(&GET_BUFFER(r)[idx * r->objSize_], args, r->objSize_);
 
     // 將 slot 的 seq 設為 當下的 head + 1，表示這格已經好了
-    atomic_store_explicit(&GET_SLOT(r)[idx], expected_head + 1, memory_order_release);
+    atomic_store_explicit(&GET_SLOT(r, idx), expected_head + 1, memory_order_release);
     return expected_head;
 }
 
@@ -74,7 +74,7 @@ ssize_t Pop_MpmcRingBuf(MpmcRingBuf_t *p, void *buf)
 
     size_t expected_tail = atomic_load_explicit(&r->tail_, memory_order_relaxed);  /* 取得目前 tail */
     size_t idx = expected_tail & r->mask_;
-    size_t seq = atomic_load_explicit(&GET_SLOT(r)[idx], memory_order_acquire);  /* 讀取 slot seq */
+    size_t seq = atomic_load_explicit(&GET_SLOT(r, idx), memory_order_acquire);  /* 讀取 slot seq */
 
     /* 如果 seq 比 tail 大 1， 代表這格有資料可讀 */
     intptr_t dif = (intptr_t) seq - (intptr_t) (expected_tail + 1);
@@ -102,7 +102,7 @@ ssize_t Pop_MpmcRingBuf(MpmcRingBuf_t *p, void *buf)
     memcpy(buf, &GET_BUFFER(r)[idx * r->objSize_], r->objSize_);
 
     /* 將 slot 的 seq 設為 當下的 tail + objNum，表示這格是空的 */
-    atomic_store_explicit(&GET_SLOT(r)[idx], expected_tail + r->objNum_, memory_order_release);
+    atomic_store_explicit(&GET_SLOT(r, idx), expected_tail + r->objNum_, memory_order_release);
     return expected_tail;
 }
 
@@ -112,7 +112,7 @@ int Pop_w_cb_MpmcRingBuf(MpmcRingBuf_t *p, Pop_cb cb, void *args)
 
     size_t expected_tail = atomic_load_explicit(&r->tail_, memory_order_relaxed);  /* 取得目前 tail */
     size_t idx = expected_tail & r->mask_;
-    size_t seq = atomic_load_explicit(&GET_SLOT(r)[idx], memory_order_acquire);  /* 讀取 slot seq */
+    size_t seq = atomic_load_explicit(&GET_SLOT(r, idx), memory_order_acquire);  /* 讀取 slot seq */
 
     /* 如果 seq 比 tail 大 1， 代表這格有資料可讀 */
     intptr_t dif = (intptr_t) seq - (intptr_t) (expected_tail + 1);
@@ -140,6 +140,6 @@ int Pop_w_cb_MpmcRingBuf(MpmcRingBuf_t *p, Pop_cb cb, void *args)
     int rc = cb(&GET_BUFFER(r)[idx * r->objSize_], args);
 
     /* 將 slot 的 seq 設為 當下的 tail + objNum，表示這格是空的 */
-    atomic_store_explicit(&GET_SLOT(r)[idx], expected_tail + r->objNum_, memory_order_release);
+    atomic_store_explicit(&GET_SLOT(r, idx), expected_tail + r->objNum_, memory_order_release);
     return rc;
 }

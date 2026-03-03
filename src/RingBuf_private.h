@@ -27,6 +27,11 @@ enum SlotStat
     SLOT_VALID = 1 << 1,
 };
 
+typedef struct _Slot
+{
+    atomic_size_t __attribute__((__aligned__((CACHE_LINE_SIZE)))) slot;
+} Slot_t;
+
 typedef struct _RingBuf {
     atomic_size_t head_ __attribute__((__aligned__(CACHE_LINE_SIZE)));
     // atomic_size_t commit_ __attribute__((__aligned__(CACHE_LINE_SIZE)));
@@ -49,7 +54,7 @@ void del_buf(RingBuf_t *r);
 
 // Helper macros to get actual pointers from offsets
 #define GET_BUFFER(r) ((char *)(r) + (r)->buffer_offset_)
-#define GET_SLOT(r) ((atomic_size_t *)((char *)(r) + (r)->slot_offset_))
+#define GET_SLOT(r, i) (((Slot_t *)((char *)(r) + (r)->slot_offset_))[(i)].slot)
 
 typedef struct _BRingBuf {
     size_t head_ __attribute__((__aligned__(CACHE_LINE_SIZE)));

@@ -57,7 +57,7 @@ static SizeInfo_t get_total_size(const size_t objNum, const size_t objSize, int 
     buffer_offset_end = get_aligned_offset(buffer_offset_start + objSize * objNum, CACHE_LINE_SIZE);
     if (useSlot & (MPMC_SLOT | MPSC_SLOT)) {
         slot_offset_start = get_aligned_offset(buffer_offset_end, CACHE_LINE_SIZE);
-        slot_offset_end = get_aligned_offset(slot_offset_start + sizeof(atomic_size_t) * objNum, CACHE_LINE_SIZE);
+        slot_offset_end = get_aligned_offset(slot_offset_start + sizeof(Slot_t) * objNum, CACHE_LINE_SIZE);
         total_size = slot_offset_end;
     } else if (useSlot & NO_SLOT) {
         total_size = buffer_offset_end;;
@@ -144,7 +144,7 @@ RingBuf_t *get_buf(const size_t objNum, const size_t objSize, const char *shmPat
 {
     /* 物件數量只能是2的冪次才能index到正確的位置 */
     // assert((objNum >= 2) && ((objNum & (objNum - 1)) == 0));
-    if (objNum < 2 && ((objNum & (objNum - 1)) != 0)) {
+    if (objNum < 2 || ((objNum & (objNum - 1)) != 0)) {
         errno = RINGBUF_CAPACITY_WRONG;
         return NULL;
     }
@@ -194,13 +194,13 @@ RingBuf_t *get_buf(const size_t objNum, const size_t objSize, const char *shmPat
             r->slot_offset_ = info.slot_off_s;
             for (size_t i = 0; i < r->objNum_; ++i) {
                 // 初始化 slot 為 i，因為初始狀態下，slot i 可供寫入
-                atomic_store_explicit(&GET_SLOT(r)[i], i, memory_order_release);
+                atomic_store_explicit(&GET_SLOT(r, i), i, memory_order_release);
             }
         } else if (useSlot & MPSC_SLOT) {
             r->slot_offset_ = info.slot_off_s;
             for (size_t i = 0; i < r->objNum_; ++i) {
                 // 初始化 slot 為 SLOT_EMPTY
-                atomic_store_explicit(&GET_SLOT(r)[i], SLOT_EMPTY, memory_order_release);
+                atomic_store_explicit(&GET_SLOT(r, i), SLOT_EMPTY, memory_order_release);
             }
         }
         // r->slot_offset_ is not used when NO_SLOT;
@@ -227,7 +227,7 @@ BRingBuf_t *get_block_buf(const size_t objNum, const size_t objSize, const char 
 {
     /* 物件數量只能是2的冪次才能index到正確的位置 */
     // assert((objNum >= 2) && ((objNum & (objNum - 1)) == 0));
-    if (objNum < 2 && ((objNum & (objNum - 1)) != 0)) {
+    if (objNum < 2 || ((objNum & (objNum - 1)) != 0)) {
         errno = RINGBUF_CAPACITY_WRONG;
         return NULL;
     }
