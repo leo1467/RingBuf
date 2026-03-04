@@ -34,7 +34,6 @@ typedef struct _Slot
 
 typedef struct _RingBuf {
     atomic_size_t head_ __attribute__((__aligned__(CACHE_LINE_SIZE)));
-    // atomic_size_t commit_ __attribute__((__aligned__(CACHE_LINE_SIZE)));
     atomic_size_t tail_ __attribute__((__aligned__(CACHE_LINE_SIZE)));
 
     // ---- buffer metadata ----

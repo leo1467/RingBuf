@@ -63,6 +63,10 @@ struct RingBufTypeTrait<RingBufType::Spsc>
 
     static ssize_t Pop(type *r, void *out) { return Pop_SpscRingBuf(r, out); }
 
+    static void *BeginPush(type *r) { return Begin_push_SpscRingBuf(r); }
+
+    static void EndPush(type *r) { return End_push_SpscRingBuf(r); }
+
     static void *BeginPop(type *r) { return Begin_pop_SpscRingBuf(r); }
 
     static void EndPop(type *r) { End_pop_SpscRingBuf(r); }

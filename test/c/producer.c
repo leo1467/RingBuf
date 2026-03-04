@@ -18,6 +18,9 @@ __thread pthread_t my_tid;
 __attribute__((always_inline)) inline
 static void chose_test_type_producer(Time_diff_t *arr, size_t pushed, char buf[], Obj *o)
 {
+    if (pushed >= N) {
+        return;
+    }
 #if ONE_THD_SLEEP_NS != 0
     if (pushed % 2000 == 0 && SPSC == 0 && PRO_THD_NUM > 1) {
         uint64_t len = 0;
@@ -78,8 +81,17 @@ void *producer_thd_work(void *args_)
 #endif
 
     Obj o;
-    while (atomic_load_explicit(pushed, memory_order_acquire) < N) {
+    size_t pushed_ = 0;
+    while (pushed < N) {
+        pushed_ = atomic_load_explicit(pushed, memory_order_acquire);
+        if (pushed_ >= N) break;
         spin_sleep_ns(PRO_SLEEP);
+#if TIME_TEST == 1 && HARDWARE_LATENCY == 0
+    if (rcc >= 0) {
+        clock_gettime(CLOCK_MONOTONIC, &(arr[pushed_].s)); // 紀錄push時間
+        o.seq = pushed_;
+    }
+#endif
 #if SPSC == 1
         rcc = Push_SpscRingBuf(r, &o, chose_test_type_producer, arr, buf, &o, sizeof(Obj));
 #elif MPSC  == 1

@@ -8,6 +8,8 @@
 #include "RingBuf_public.h"
 #include "RingBuf_private.h"
 
+static __thread size_t local_head = 0;
+
 MpscRingBuf_t *Get_MpscRingBuf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag)
 {
     return (MpscRingBuf_t *) get_buf(objNum, objSize, shmPath, prot, flag, MPSC_SLOT);
@@ -52,12 +54,15 @@ ssize_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args, size_t size)
 ssize_t Pop_MpscRingBuf(MpscRingBuf_t *p, void *buf)
 {
     RingBuf_t *r = (RingBuf_t *) p;
-    const size_t curr_head = atomic_load_explicit(&r->head_, memory_order_acquire);
     const size_t curr_tail = atomic_load_explicit(&r->tail_, memory_order_relaxed);
-    if (curr_tail == curr_head) {
-        errno = RINGBUF_EMPTY;
-        return errno;
+    if ((local_head - curr_tail) == 0) {
+        local_head = atomic_load_explicit(&r->head_, memory_order_acquire);
+        if ((local_head - curr_tail) == 0) {
+            errno = RINGBUF_EMPTY;
+            return errno;
+        }
     }
+
     const size_t idx = curr_tail & r->mask_;
     const enum SlotStat slot_stat = atomic_load_explicit(&GET_SLOT(r, idx), memory_order_acquire);
     if (slot_stat & SLOT_EMPTY) {

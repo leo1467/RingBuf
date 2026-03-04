@@ -12,18 +12,19 @@
 
 // ringbuf type
 #define SPSC 0
-#define MPSC 0
-#define MPMC 1
+#define MPSC 1
+#define MPMC 0
 #define BLOCK 0
 
 // for test
 #define YIELD 0          // 1 for push & pop to yield when got NULL
 #define RELAX 1          // 1 for cpu_relax()
-#define PRO_SLEEP 50000  // producer sleep ns
+#define PRO_SLEEP 0  // producer sleep ns
 #define CON_SLEEP 0      // consumer sleep ns
 #define PRO_THD_NUM 3    // producer threads
 #define CON_THD_NUM 1    // consumer threads
 #define BINDCORE 1
+#define HARDWARE_LATENCY 1
 
 // debug use
 #define TIME_TEST 1  // 0 for testing memory integrity
@@ -38,7 +39,7 @@
 #define PRO_START_CORE 3
 #define CON_START_CORE 9
 
-#define N       10000  // test loop
+#define N       100000  // test loop
 #define OBJ_NUM 1024
 
 #define magichead 0xDEADBEEF
