@@ -52,16 +52,16 @@ struct RingBufTypeTrait<RingBufType::Spsc>
 {
     using type = SpscRingBuf_t;
 
-    static type *GetRing(const size_t n, const size_t objSize, const char *path, int prot, int flag)
+    static int GetRing(type **r, const size_t n, const size_t objSize, const char *path, int prot, int flag)
     {
-        return Get_SpscRingBuf(n, objSize, path, prot, flag);
+        return Get_SpscRingBuf_e(r, n, objSize, path, prot, flag);
     }
 
     static void DelRing(type *r) { Del_SpscRingBuf(r); }
 
     static ssize_t Push(type *r, void *data, size_t len) { return Push_SpscRingBuf(r, data, len); }
 
-    static ssize_t Pop(type *r, void *out) { return Pop_SpscRingBuf(r, out); }
+    static ssize_t Pop(type *r, void *out, size_t size) { return Pop_SpscRingBuf(r, out, size); }
 
     static void *BeginPush(type *r) { return Begin_push_SpscRingBuf(r); }
 
@@ -77,16 +77,16 @@ struct RingBufTypeTrait<RingBufType::Mpsc>
 {
     using type = MpscRingBuf_t;
 
-    static type *GetRing(const size_t n, const size_t objSize, const char *path, int prot, int flag)
+    static int GetRing(type **r, const size_t n, const size_t objSize, const char *path, int prot, int flag)
     {
-        return Get_MpscRingBuf(n, objSize, path, prot, flag);
+        return Get_MpscRingBuf_e(r, n, objSize, path, prot, flag);
     }
 
     static void DelRing(type *r) { Del_MpscRingBuf(r); }
 
     static ssize_t Push(type *r, void *data, size_t len) { return Push_MpscRingBuf(r, data, len); }
 
-    static ssize_t Pop(type *r, void *out) { return Pop_MpscRingBuf(r, out); }
+    static ssize_t Pop(type *r, void *out, size_t size) { return Pop_MpscRingBuf(r, out, size); }
 
     static int Pop_w_cb(type *r, Pop_cb cb, void *args) { return Pop_w_cb_MpscRingBuf(r, cb, args); }
 };
@@ -96,14 +96,16 @@ struct RingBufTypeTrait<RingBufType::Mpmc>
 {
     using type = MpmcRingBuf_t;
 
-    static type *GetRing(const size_t n, const size_t objSize, const char *path, int prot, int flag)
+    static int GetRing(type **r, const size_t n, const size_t objSize, const char *path, int prot, int flag)
     {
-        return Get_MpmcRingBuf(n, objSize, path, prot, flag);
+        return Get_MpmcRingBuf_e(r, n, objSize, path, prot, flag);
     }
 
     static void DelRing(type *r) { Del_MpmcRingBuf(r); }
 
     static ssize_t Push(type *r, void *data, size_t len) { return Push_MpmcRingBuf(r, data, len); }
+
+    static ssize_t Pop(type *r, void *out, size_t size) { return Pop_MpmcRingBuf(r, out, size); }
 
     static int Pop_w_cb(type *r, Pop_cb cb, void *args) { return Pop_w_cb_MpmcRingBuf(r, cb, args); }
 };
@@ -113,16 +115,16 @@ struct RingBufTypeTrait<RingBufType::Block>
 {
     using type = BlockRingBuf_t;
 
-    static type *GetRing(const size_t n, const size_t objSize, const char *path, int prot, int flag)
+    static int GetRing(type **r, const size_t n, const size_t objSize, const char *path, int prot, int flag)
     {
-        return Get_BlockRingBuf(n, objSize, path, prot, flag);
+        return Get_BlockRingBuf_e(r, n, objSize, path, prot, flag);
     }
 
     static void DelRing(type *r) { Del_BlockRingBuf(r); }
 
     static ssize_t Push(type *r, void *data, size_t len) { return Push_BlockRingBuf(r, data, len); }
 
-    static ssize_t Pop(type *r, void *out) { return Pop_BlockRingBuf(r, out); }
+    static ssize_t Pop(type *r, void *out, size_t size) { return Pop_BlockRingBuf(r, out, size); }
 };
 
 template <typename T, typename... Options>
@@ -153,7 +155,7 @@ public:
     ssize_t Pop(T &obj) noexcept
     {
         static_assert(std::is_same_v<std::decay_t<T>, Obj>, "Pop incorrect object type");
-        return Base::Pop(r_, static_cast<void *>(&obj));
+        return Base::Pop(r_, static_cast<void *>(&obj), sizeof(Obj));
     }
 
     // Callable-based pop with trampoline (requires synchronous callback invocation by C layer)
@@ -175,7 +177,7 @@ public:
                 return rc;
             } else if constexpr (std::is_same_v<R, RingBufType::Block>) {
                 Obj obj{};
-                int rc = Base::Pop(r_, reinterpret_cast<void *>(&obj));
+                int rc = Base::Pop(r_, reinterpret_cast<void *>(&obj), sizeof(Obj));
                 if (rc < 0) {
                     return rc;
                 }
@@ -224,12 +226,10 @@ public:
 
     int Init(const char *shmPath, int prot, int flag)
     {
-        r_ = Base::GetRing(ObjNum, sizeof(Obj), shmPath, prot, flag);
+        int rc = Base::GetRing(&r_, ObjNum, sizeof(Obj), shmPath, prot, flag);
         p_ = std::shared_ptr<typename Base::type>(r_, dter{});
-        return (r_ ? 0 : -1);
+        return rc;
     }
-
-    explicit RingBuf(const char *shmPath, int prot, int flag) { Init(shmPath, prot, flag); }
 
     RingBuf() = default;
     ~RingBuf() = default;

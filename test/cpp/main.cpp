@@ -46,13 +46,18 @@ void func(Obj &o, int n)
         return i;
     };
     int x = 0;
-    T r(SHM, MAP_SHM | MAP_NEW, 0);
+    T r;
+    int rc = r.Init(SHM, MAP_SHM | MAP_NEW, 0);
+    if (rc < 0) {
+        printf("%s\n", r.Get_RingBuf_strerror(rc));
+        return;
+    }
     decltype(r) s = r;
     Obj j;
     for (int i = 0; i < n; ++i) {
         r.Push(o);
 
-        // r.Pop(j); 
+        r.Pop(j); 
         // x = cb(nullptr);
         // x = s.Pop_w_cb(cb1, nullptr);
         // x = s.Pop_w_cb(cb);
@@ -62,6 +67,14 @@ void func(Obj &o, int n)
         // std::cout << y << std::endl;
     }
     unlink(SHM);
+}
+
+template<typename T>
+void check_rc(T &r, int rc)
+{
+    if (rc < 0) {
+        printf("%s\n", r.Get_RingBuf_strerror(rc));
+    }
 }
 
 int main()
@@ -75,10 +88,25 @@ int main()
     // auto end = std::chrono::steady_clock::now();
     // std::cout << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << std::endl;
 
-    RW::RingBuf<RW::RingBufType::Block, Obj, ObjNum> r;
-    // RW::RingBuf<RW::RingBufType::Mpmc, Obj, ObjNum> r1;
-    // RW::RingBuf<RW::RingBufType::Mpsc, Obj, ObjNum> r2;
-    // RW::RingBuf<RW::RingBufType::Spsc, Obj, ObjNum> r3;
+    int rc = 0;
+    auto p = &o;
+    // RW::RingBuf<RW::RingBufType::Block, Obj, ObjNum> r;
+    // check_rc(r, r.Init(SHM, MAP_SHM | MAP_NEW, 0));
+    // r.Pop(*p);
+    // r.~RingBuf();
+    RW::RingBuf<RW::RingBufType::Mpmc, Obj, ObjNum> r1;
+    check_rc(r1, r1.Init(SHM, MAP_SHM | MAP_NEW, 0));
+    r1.Pop(*p);
+    r1.~RingBuf();
+    RW::RingBuf<RW::RingBufType::Mpsc, Obj, ObjNum> r2;
+    check_rc(r2, r2.Init(SHM, MAP_SHM | MAP_NEW, 0));
+    r2.Pop(*p);
+    r2.~RingBuf();
+    RW::RingBuf<RW::RingBufType::Spsc, Obj, ObjNum> r3;
+    check_rc(r3, r3.Init(SHM, MAP_SHM | MAP_NEW, 0));
+    r3.Pop(*p);
+    r3.~RingBuf();
+    
     // int rc = r.Init(SHM, MAP_NEW | MAP_SHM, 0);
     // if (rc < 0) {
     //     std::cout << r.Get_RingBuf_strerror(errno) << std::endl;
