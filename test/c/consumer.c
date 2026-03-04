@@ -13,6 +13,8 @@
 #include "RingBuf_public.h"
 #include "common.h"
 
+__thread pthread_t my_tid;
+
 __attribute__((always_inline)) inline
 static bool check(Obj *o, char buf[], int64_t rcc)
 {
@@ -45,8 +47,9 @@ EXIT:
 __attribute__((always_inline)) inline
 static void chose_test_type_comsumer(Time_diff_t *arr, char buf[], Obj *o, int64_t rcc)
 {
-#if TIME_TEST == 1
-    clock_gettime(CLOCK_MONOTONIC, &(arr[o->seq].e)); // 紀錄pop時間
+#if TIME_TEST > 0
+    arr[o->seq].e.tv_sec = 0;
+    arr[o->seq].e.tv_nsec = rdtscp(); // 紀錄pop時間
 #else
 #if ASSERT == 1
     assert(check(o, buf, rcc));
@@ -59,9 +62,9 @@ static void chose_test_type_comsumer(Time_diff_t *arr, char buf[], Obj *o, int64
     char bb[2048] = {};
     uint64_t len = 0;
 #if MSG == 1
-    len = snprintf(bb, sizeof(bb), "pop=[%lu][%lu][%s]\n", rcc, o->seq, o->buf);
+    len = snprintf(bb, sizeof(bb), "[%ld]:pop=[%lu][%lu][%s]\n", my_tid, rcc, o->seq, o->buf);
 #else
-    len = snprintf(bb, sizeof(bb), "pop=[%lu][%lu]\n", rcc, o->seq);
+    len = snprintf(bb, sizeof(bb), "[%ld]:pop=[%lu][%lu]\n", my_tid, rcc, o->seq);
 #endif
     write(STDOUT_FILENO, bb, len);
 #endif
@@ -69,6 +72,8 @@ static void chose_test_type_comsumer(Time_diff_t *arr, char buf[], Obj *o, int64
 
 void *consumer_thd_work(void *args_)
 {
+    my_tid = pthread_self();
+
     // 產生要放入Obj::buf的資料
     char buf[sizeof((Obj){}.buf)] = {};
     for (int i = 0; i < sizeof(buf); ++i) {
@@ -98,30 +103,30 @@ void *consumer_thd_work(void *args_)
 #endif
 
     Obj o;
-    while (atomic_load_explicit(got, memory_order_acquire)< N) {
+    for (size_t got_ = atomic_fetch_add_explicit(got, 1, memory_order_acq_rel); got_ < N; got_ = atomic_fetch_add_explicit(got, 1, memory_order_acq_rel)) {
         spin_sleep_ns(CON_SLEEP);
+        do {
 #if SPSC == 1
-        rcc = Pop_SpscRingBuf(r, &o);
+            rcc = Pop_SpscRingBuf(r, &o, sizeof(o));
 #elif MPSC == 1
-        rcc = Pop_MpscRingBuf(r, &o);
+            rcc = Pop_MpscRingBuf(r, &o, sizeof(o));
 #elif MPMC == 1
-        rcc = Pop_MpmcRingBuf(r, &o);
+            rcc = Pop_MpmcRingBuf(r, &o, sizeof(o));
 #elif BLOCK == 1
-        rcc = Pop_BlockRingBuf(r, &o);
+            rcc = Pop_BlockRingBuf(r, &o, sizeof(o));
 #endif
+            if (rcc < 0) {
+#if YIELD == 1
+                sched_yield();
+#elif RELAX == 1
+                cpu_relax();
+#endif
+            }
+        } while(rcc < 0);
         // if (rcc == RINGBUF_EMPTY) {
         //     write(STDOUT_FILENO, "empty\n", 6);
         // }
-        if (rcc >= 0) {
-            chose_test_type_comsumer(arr, buf, &o, rcc);
-            atomic_fetch_add_explicit(got, 1, memory_order_release);
-        } else {
-#if YIELD == 1
-            sched_yield();
-#elif RELAX == 1
-            cpu_relax();
-#endif
-        }
+        chose_test_type_comsumer(arr, buf, &o, rcc);
     }
     pthread_exit(NULL);
 }
@@ -185,9 +190,16 @@ int main()
         pthread_join(tids[i], NULL);
     }
 
-#if TIME_TEST == 1
+#if TIME_TEST > 0
+    extern double cycles_per_ns;
+    // double cycles_per_ns;
     for (int i = 0; i < N; ++i) {
-        fprintf(stdout, "%lld\n", time_diff(&arr[i].s, &arr[i].e)); // 印出push pop印出時間
+        uint64_t s = arr[i].s.tv_nsec;
+        uint64_t e = arr[i].e.tv_nsec;
+        uint64_t diff_cycles = (e > s) ? (e - s) : 0;
+        double diff_ns = diff_cycles / (cycles_per_ns == 0.0 ? 1.0 : cycles_per_ns);
+        // fprintf(stdout, "%llu cycles, %.0f ns\n", (unsigned long long)diff_cycles, diff_ns);
+        fprintf(stdout, "%.0f\n", diff_ns);
     }
 #endif
 #if SPSC == 1
@@ -196,6 +208,8 @@ int main()
     Del_MpscRingBuf(r);
 #elif MPMC == 1
     Del_MpmcRingBuf(r);
+#elif BLOCK == 1
+    Del_BlockRingBuf(r);
 #endif
     close(fd);
     munmap(p, TOTAL_SIZE);

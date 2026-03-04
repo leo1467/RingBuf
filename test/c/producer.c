@@ -16,37 +16,44 @@
 __thread pthread_t my_tid;
 
 __attribute__((always_inline)) inline
+static void do_timestemp(Time_diff_t *arr, size_t pushed, char buf[], Obj *o)
+{
+    arr[pushed].s.tv_sec = 0;
+    arr[pushed].s.tv_nsec = rdtscp();
+    o->seq = pushed;
+};
+
+__attribute__((always_inline)) inline
 static void chose_test_type_producer(Time_diff_t *arr, size_t pushed, char buf[], Obj *o)
 {
-    if (pushed >= N) {
-        return;
-    }
 #if ONE_THD_SLEEP_NS != 0
     if (pushed % 2000 == 0 && SPSC == 0 && PRO_THD_NUM > 1) {
         uint64_t len = 0;
         char bf[128] = {};
         len = snprintf(bf, sizeof(bf), "%ld sleep\n", my_tid);
         write(STDOUT_FILENO, bf, len);
-        struct timespec s, e;
-        clock_gettime(CLOCK_MONOTONIC, &s);
+        uint64_t s = rdtscp();
         spin_sleep_ns(ONE_THD_SLEEP_NS);
-        clock_gettime(CLOCK_MONOTONIC, &e);
-        long long dif = time_diff(&s, &e);
-        len = snprintf(bf, sizeof(bf), "%ld wake[%lld]\n", my_tid, dif);
+        uint64_t e = rdtscp();
+        double cycles_per_ns = (cycles_per_ns == 0.0 ? 1.0 : cycles_per_ns); // fallback
+        long long dif = (long long)((e - s) / cycles_per_ns);
+        len = snprintf(bf, sizeof(bf), "%ld wake[%lld ns]\n", my_tid, dif);
         write(STDOUT_FILENO, bf, len);
     }
 #endif
-#if TIME_TEST == 1
-    clock_gettime(CLOCK_MONOTONIC, &(arr[pushed].s)); // 紀錄push時間
-    o->seq = pushed;
-#else
+#if TIME_TEST == 2
+    do_timestemp(arr, pushed, buf, o);
+#endif
+};
+
+__attribute__((always_inline)) inline
+static void fill_obj(Obj *o, char buf[], size_t pushed) {
     o->magH = magichead;
     o->magT = magictail;
     memcpy(o->buf, buf, sizeof(o->buf));
     o->buf[0] = (o->buf[0] + pushed) * PRIME % 97 % 26 + 97;
     o->seq = pushed;
-#endif
-};
+}
 
 void *producer_thd_work(void *args_)
 {
@@ -81,48 +88,49 @@ void *producer_thd_work(void *args_)
 #endif
 
     Obj o;
-    size_t pushed_ = 0;
-    while (pushed < N) {
-        pushed_ = atomic_load_explicit(pushed, memory_order_acquire);
-        if (pushed_ >= N) break;
+    for (size_t pushed_ = atomic_fetch_add_explicit(pushed, 1, memory_order_acq_rel); pushed_ < N; pushed_ = atomic_fetch_add_explicit(pushed, 1, memory_order_acq_rel)) {
         spin_sleep_ns(PRO_SLEEP);
-#if TIME_TEST == 1 && HARDWARE_LATENCY == 0
-    if (rcc >= 0) {
-        clock_gettime(CLOCK_MONOTONIC, &(arr[pushed_].s)); // 紀錄push時間
-        o.seq = pushed_;
-    }
+        fill_obj(&o, buf, pushed_);
+#if TIME_TEST == 1
+        do_timestemp(arr, pushed_, NULL, &o);
 #endif
+        do {
 #if SPSC == 1
-        rcc = Push_SpscRingBuf(r, &o, chose_test_type_producer, arr, buf, &o, sizeof(Obj));
+            rcc = Push_SpscRingBuf(r, &o, chose_test_type_producer, arr, buf, &o, sizeof(Obj));
 #elif MPSC  == 1
-        rcc = Push_MpscRingBuf(r, &o, chose_test_type_producer, arr, buf, &o, sizeof(Obj));
+            rcc = Push_MpscRingBuf(r, &o, chose_test_type_producer, arr, buf, &o, sizeof(Obj));
 #elif MPMC == 1
-        rcc = Push_MpmcRingBuf(r, &o, chose_test_type_producer, arr, buf, &o, sizeof(Obj));
+            rcc = Push_MpmcRingBuf(r, &o, chose_test_type_producer, arr, buf, &o, sizeof(Obj));
 #elif BLOCK == 1
-        rcc = Push_BlockRingBuf(r, &o, chose_test_type_producer, arr, buf, &o, sizeof(Obj));
+            rcc = Push_BlockRingBuf(r, &o, chose_test_type_producer, arr, buf, &o, sizeof(Obj));
 #endif
-        // if (rcc == RINGBUF_FULL) {
-        //     write(STDOUT_FILENO, "full\n", 5);
-        // }
-        if (rcc >= 0) {
-            atomic_fetch_add_explicit(pushed, 1, memory_order_release);
-#if PRINT == 1
-            char bb[2048] = {};
-            uint64_t len = 0;
-#if MSG == 1
-            len = snprintf(bb, sizeof(bb), "[%ld]:push=[%ld][%lu][%s]\n", my_tid, rcc, o.seq, o.buf);
-#else
-            len = snprintf(bb, sizeof(bb), "push=[%ld][%lu]\n", rcc, o.seq);
+#if ONE_THD_SLEEP_NS > 0
+            if (rcc == RINGBUF_FULL) {
+                char b[32] = {};
+                int rc = snprintf(b, sizeof(b), "[%ld] full\n", my_tid);
+                write(STDOUT_FILENO, b, rc);
+            }
 #endif
-            write(STDOUT_FILENO, bb, len);
-#endif
-        } else {
+            if (rcc < 0) {
 #if YIELD == 1
                 sched_yield();
 #elif RELAX == 1
                 cpu_relax();
 #endif
+            }
+        } while (rcc < 0);
+#if PRINT == 1
+        {
+            char bb[2048] = {};
+            uint64_t len = 0;
+#if MSG == 1
+            len = snprintf(bb, sizeof(bb), "[%ld]:push=[%ld][%lu][%s]\n", my_tid, rcc, o.seq, o.buf);
+#else
+            len = snprintf(bb, sizeof(bb), "[%ld]:push=[%ld][%lu]\n", my_tid, rcc, o.seq);
+#endif
+            write(STDOUT_FILENO, bb, len);
         }
+#endif
     }
     pthread_exit(NULL);
 }
@@ -170,6 +178,7 @@ int main()
         close(fd);
         return 1;
     }
+    memset(p, 0, TOTAL_SIZE); // 清除上一輪殘留的時間資料，避免 e < s 造成負數
     Time_diff_t *arr = (Time_diff_t *) p; // 紀錄push pop時間用
 
     write(STDOUT_FILENO, "count down ", strlen("count donw "));
@@ -202,6 +211,8 @@ int main()
     Del_MpscRingBuf(r);
 #elif MPMC == 1
     Del_MpmcRingBuf(r);
+#elif BLOCK == 1
+    Del_BlockRingBuf(r);
 #endif
     close(fd);
     munmap(p, TOTAL_SIZE);

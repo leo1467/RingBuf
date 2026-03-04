@@ -1,20 +1,20 @@
 | Ring Buffer 1.06 MB, 1024格<br>單次寫入1088 bytes<br>寫入10000次<br>isolate core, bindcore<br>生產者每push一筆,睡10us<br>消費者busy loop,<br> 單位ns |||||||
 |------------- |---------------|--|--|--|---------------------------|-----------------|
-| [SPSC](./image/spsc.jpg) | 平均值: 623.99 | | | | [SPSC(2MB hugetlb)](./image/spsc_h.jpg) | 平均值: 518.25 |
+| [SPSC](./image/spsc.png) | 平均值: 623.99 | | | | [SPSC(2MB hugetlb)](./image/spsc_h.png) | 平均值: 518.25 |
 |                                                                      |   標準差: 629.60   |  |  |  |                           |   標準差: 156.52   |
 |                                                                      |   最大值: 13314.00 |  |  |  |                           |   最大值: 14296.00 |
 |                                                                      |   最小值: 360.00   |  |  |  |                           |   最小值: 389.00   |
-| [MPSC(3p, 1c)](./image/mpsc.jpg) | | | | | [MPSC(3p, 1c, 2MB hugetlb)](./image/mpsc_h.jpg) | |
+| [MPSC(3p, 1c)](./image/mpsc.png) | | | | | [MPSC(3p, 1c, 2MB hugetlb)](./image/mpsc_h.png) | |
 |                                                                      |   平均值: 619.06   |  |  |  |                           |   平均值: 469.83   |
 |                                                                      |   標準差: 829.84   |  |  |  |                           |   標準差: 246.67   |
 |                                                                      |   最大值: 14865.00 |  |  |  |                           |   最大值: 15300.00 |
 |                                                                      |   最小值: 346.00   |  |  |  |                           |   最小值: 340.00   |
-| [MPMC(3p, 3c)](./image/mpmc_3p3c.jpg) | | | | | [MPMC(3p, 3c, 2MB hugetlb)](./image/mpmc_3p3c_h.jpg) | |
+| [MPMC(3p, 3c)](./image/mpmc_3p3c.png) | | | | | [MPMC(3p, 3c, 2MB hugetlb)](./image/mpmc_3p3c_h.png) | |
 |                                                                      |   平均值: 743.77   |  |  |  |                           |   平均值: 535.48   |
 |                                                                      |   標準差: 931.08   |  |  |  |                           |   標準差: 191.24   |
 |                                                                      |   最大值: 14744.00 |  |  |  |                           |   最大值: 13315.00 |
 |                                                                      |   最小值: 449.00   |  |  |  |                           |   最小值: 410.00   |
-| [MPMC(3p, 1c)](./image/mpmc_3p1c.jpg) | | | | | [MPMC(3p, 1c, 2MB hugetlb)](./image/mpmc_3p1c_h.jpg) | |
+| [MPMC(3p, 1c)](./image/mpmc_3p1c.png) | | | | | [MPMC(3p, 1c, 2MB hugetlb)](./image/mpmc_3p1c_h.png) | |
 |                                                                      |   平均值: 697.64   |  |  |  |                           |   平均值: 525.99   |
 |                                                                      |   標準差: 814.73   |  |  |  |                           |   標準差: 248.16   |
 |                                                                      |   最大值: 12973.00 |  |  |  |                           |   最大值: 16412.00 |

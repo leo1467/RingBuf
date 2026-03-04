@@ -1,33 +1,30 @@
 #pragma once
 
-// #define _GNU_SOURCE
-
 #include <pthread.h>
 #include <sched.h>
 #include <stdatomic.h>
 #include <time.h>
 #include <unistd.h>
 
-#include "RingBuf_public.h"
+#include "RingBuf_debug.h"
 
 // ringbuf type
-#define SPSC 0
-#define MPSC 1
+#define SPSC 1
+#define MPSC 0
 #define MPMC 0
 #define BLOCK 0
 
 // for test
 #define YIELD 0          // 1 for push & pop to yield when got NULL
 #define RELAX 1          // 1 for cpu_relax()
-#define PRO_SLEEP 0  // producer sleep ns
-#define CON_SLEEP 0      // consumer sleep ns
+#define PRO_SLEEP 10000  // producer sleep ns
+#define CON_SLEEP 1000      // consumer sleep ns
 #define PRO_THD_NUM 3    // producer threads
-#define CON_THD_NUM 1    // consumer threads
+#define CON_THD_NUM 3    // consumer threads
 #define BINDCORE 1
-#define HARDWARE_LATENCY 1
 
 // debug use
-#define TIME_TEST 1  // 0 for testing memory integrity
+#define TIME_TEST 1  // 0 for testing memory integrity, 1 timestemp before push, 2 timestemp after CAS
 #define PRINT 0      // print every msg after push and pop
 #define MSG 1        // print msg in Obj::buf
 #define ASSERT 1     // comsumer assert check msg
@@ -39,7 +36,7 @@
 #define PRO_START_CORE 3
 #define CON_START_CORE 9
 
-#define N       100000  // test loop
+#define N       10000  // test loop
 #define OBJ_NUM 1024
 
 #define magichead 0xDEADBEEF
@@ -78,24 +75,44 @@ static bool check_core_collide()
     return pro_start <= con_end && con_start <= pro_end;
 }
 
+#include <stdint.h>
+#if defined(_MSC_VER)
+#include <intrin.h>
+static __inline__ uint64_t rdtscp() { unsigned int aux; return __rdtscp(&aux); }
+#elif defined(__x86_64__) || defined(__i386__)
+static __inline__ uint64_t rdtscp() {
+    unsigned int lo, hi;
+    __asm__ __volatile__ ("rdtscp" : "=a"(lo), "=d"(hi) :: "rcx");
+    return ((uint64_t)hi << 32) | lo;
+}
+#else
+#error "rdtscp not supported on this platform"
+#endif
+
+static double cycles_per_ns = 0.0;
+
+static void calibrate_rdtscp() {
+    struct timespec t0, t1;
+    uint64_t c0, c1;
+    clock_gettime(CLOCK_MONOTONIC, &t0);
+    c0 = rdtscp();
+    // sleep 10ms for calibration
+    struct timespec ts = {0, 10 * 1000 * 1000};
+    nanosleep(&ts, NULL);
+    clock_gettime(CLOCK_MONOTONIC, &t1);
+    c1 = rdtscp();
+    long long ns = (t1.tv_sec - t0.tv_sec) * 1000000000LL + (t1.tv_nsec - t0.tv_nsec);
+    cycles_per_ns = (double)(c1 - c0) / (double)ns;
+}
+
 __attribute__((always_inline)) inline 
 static void spin_sleep_ns(long tm)
 {
-    if (tm <= 0) {
-        return;
-    }
-
-    struct timespec start, now;
-    clock_gettime(CLOCK_MONOTONIC, &start);
-
-    while (true) {
-        clock_gettime(CLOCK_MONOTONIC, &now);
-
-        long long elapsed_ns = (now.tv_sec - start.tv_sec) * 1000000000LL + (now.tv_nsec - start.tv_nsec);
-
-        if (elapsed_ns >= tm) {
-            break;
-        }
+    if (tm <= 0) return;
+    if (cycles_per_ns == 0.0) calibrate_rdtscp();
+    uint64_t start = rdtscp();
+    uint64_t target = (uint64_t)(tm * cycles_per_ns);
+    while (rdtscp() - start < target) {
         cpu_relax();
     }
 }
