@@ -1,6 +1,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "RingBuf_debug.h"
 #include "RingBuf_private.h"
 #include "RingBuf_public.h"
 

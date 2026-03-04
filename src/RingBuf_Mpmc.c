@@ -5,8 +5,9 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
-#include "RingBuf_public.h"
+#include "RingBuf_debug.h"
 #include "RingBuf_private.h"
+#include "RingBuf_public.h"
 
 MpmcRingBuf_t *Get_MpmcRingBuf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag)
 {

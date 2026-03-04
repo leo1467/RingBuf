@@ -5,8 +5,9 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
-#include "RingBuf_public.h"
+#include "RingBuf_debug.h"
 #include "RingBuf_private.h"
+#include "RingBuf_public.h"
 
 static __thread size_t local_head = 0;
 

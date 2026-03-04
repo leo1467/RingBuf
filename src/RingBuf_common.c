@@ -347,7 +347,7 @@ int Get_SpscRingBuf_e(SpscRingBuf_t **out, const size_t objNum, const size_t obj
     if (!out) {
         return RINGBUF_INVALID_PARAM;
     }
-    *out = get_buf(objNum, objSize, shmPath, prot, flag, NO_SLOT);
+    *out = (SpscRingBuf_t *)get_buf(objNum, objSize, shmPath, prot, flag, NO_SLOT);
     if (!*out) {
         return errno;
     }
@@ -359,7 +359,7 @@ int Get_MpscRingBuf_e(MpscRingBuf_t **out, const size_t objNum, const size_t obj
     if (!out) {
         return RINGBUF_INVALID_PARAM;
     }
-    *out = get_buf(objNum, objSize, shmPath, prot, flag, MPSC_SLOT);
+    *out = (MpscRingBuf_t *)get_buf(objNum, objSize, shmPath, prot, flag, MPSC_SLOT);
     if (!*out) {
         return errno;
     }
@@ -371,7 +371,7 @@ int Get_MpmcRingBuf_e(MpmcRingBuf_t **out, const size_t objNum, const size_t obj
     if (!out) {
         return RINGBUF_INVALID_PARAM;
     }
-    *out = get_buf(objNum, objSize, shmPath, prot, flag, MPMC_SLOT);
+    *out = (MpmcRingBuf_t *)get_buf(objNum, objSize, shmPath, prot, flag, MPMC_SLOT);
     if (!*out) {
         return errno;
     }
@@ -383,7 +383,7 @@ int Get_BlockRingBuf_e(BlockRingBuf_t **out, const size_t objNum, const size_t o
     if (!out) {
         return RINGBUF_INVALID_PARAM;
     }
-    *out = get_block_buf(objNum, objSize, shmPath, prot, flag);
+    *out = (BlockRingBuf_t *)get_block_buf(objNum, objSize, shmPath, prot, flag);
     if (!*out) {
         return errno;
     }
