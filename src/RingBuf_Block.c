@@ -37,14 +37,17 @@ ssize_t Push_BlockRingBuf(BlockRingBuf_t *p, void *args, size_t size)
     return head;
 }
 
-ssize_t Pop_BlockRingBuf(BlockRingBuf_t *p, void *buf)
+ssize_t Pop_BlockRingBuf(BlockRingBuf_t *p, void *buf, size_t size)
 {
     BRingBuf_t *r = (BRingBuf_t *) p;
+    if (size > r->objSize_) {
+        return RINGBUF_POP_SIZE_TOO_LARGE;
+    }
     pthread_mutex_lock(&r->mtx);
     while (r->head_ == r->tail_) {
         pthread_cond_wait(&r->readable, &r->mtx);
     }
-    memcpy(buf, &r->buffer[(r->tail_ & r->mask_) * r->objSize_], r->objSize_);
+    memcpy(buf, &r->buffer[(r->tail_ & r->mask_) * r->objSize_], size);
     size_t tail = r->tail_;
     r->tail_ += 1;
     pthread_cond_signal(&r->writeable);

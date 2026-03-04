@@ -5,12 +5,29 @@
 #include <time.h>
 #include <unistd.h>
 
-/* Platform-specific CPU pause/yield for spin-wait loops */
+/**
+ * cpu_relax() - Yield CPU pipeline resources in spin-wait loops
+ *
+ * Usage:
+ *   Call inside busy-wait loops to notify the CPU that the thread is spinning.
+ *   x86/x64 issues the PAUSE instruction; ARM issues the YIELD instruction; other platforms are no-op.
+ *
+ * When to use:
+ *   1. When retrying Push/Pop due to RINGBUF_FULL / RINGBUF_EMPTY / RINGBUF_CONTENTION
+ *   2. Any while(!done) spin loop where sleep is not needed but you want to reduce CPU power and pipeline contention
+ *
+ * When NOT to use:
+ *   1. For longer waits (> several microseconds), use sched_yield() or nanosleep() to yield the thread
+ *   2. If you do not care about power or CPU usage and require ultra-low latency, you may omit (pure empty loop)
+ *
+ * Effects:
+ *   - x86 PAUSE: Hints to CPU this is a spin-wait, reduces pipeline flushes due to memory order violations,
+ *                lowers power, and gives more resources to the sibling HyperThread
+ *   - ARM YIELD: Similarly hints to CPU to yield resources to another thread on the same core
+ */
 #if defined(__x86_64__) || defined(__i386__)
-/* Use inline assembly for better AMD compatibility */
 #define cpu_relax() __asm__ __volatile__("pause" ::: "memory")
 #elif defined(__aarch64__) || defined(__arm__)
-/* ARM yield instruction for spin-wait loops */
 #define cpu_relax() __asm__ __volatile__("yield" ::: "memory")
 #else
 #define cpu_relax() do {} while (0)
@@ -48,9 +65,10 @@ typedef void (*testFunc)(Time_diff_t *arr, size_t pushed, char buf[], Obj *o);
 #define RINGBUF_MAPPING_NOT_EXITS   -107 /**< Use MAP_EXIST but memory mapping does not exist */
 #define RINGBUF_MAPPING_SIZE_ERROR  -108 /**< Memory mapping size mismatch */
 #define RINGBUF_PUSH_SIZE_TOO_LARGE -109 /**< Push size exceeded base obj size */
-#define RINGBUF_USE_SLOT_NA         -110 /**< Argument of get_buf of useSlot is not defined */
-#define RINGBUF_SLOT_WRITING_DATA   -111 /**< Producer is writing slot */
-#define RINGBUF_SLOT_STAT_UNKNOWN   -112 /**< Ring buffer slot data unknown, probably won't happen */
+#define RINGBUF_POP_SIZE_TOO_LARGE  -110 /**< Pop size exceeded base obj size */
+#define RINGBUF_USE_SLOT_NA         -111 /**< Argument of get_buf of useSlot is not defined */
+#define RINGBUF_SLOT_WRITING_DATA   -112 /**< Producer is writing slot */
+#define RINGBUF_SLOT_STAT_UNKNOWN   -113 /**< Ring buffer slot data unknown, probably won't happen */
 
 /**
  * Types of ring buffer
@@ -83,8 +101,12 @@ enum RingBufMappingType {
 /**
  * Callback for callback type functions
  * Used in callback-based pop functions to avoid extra memory copy
+ *
+ * @p    : pointer to the memory location inside the ring buffer (the popped object)
+ *         DO NOT TRY TO MODIFY ITS CONTENTS 
+ * @args : user-defined arguments for use inside the callback
  */
-typedef int(*Pop_cb)(void *obj, void *args);
+typedef int(*Pop_cb)(const void *p, void *args);
 
 #ifdef __cplusplus
 extern "C" {
@@ -210,10 +232,11 @@ ssize_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args, size_t size);
  * 
  * @p : addr of ring buffer
  * @buf : buffer to store data in the ring buffer
+ * @size : size of buf, must not exceed the base obj size of ring buffer
  * 
  * Return the tail index where data was popped, -1 if empty
  */
-ssize_t Pop_SpscRingBuf(SpscRingBuf_t *p, void *buf);
+ssize_t Pop_SpscRingBuf(SpscRingBuf_t *p, void *buf, size_t size);
 
 bool Is_empty_SpscRingBuf(SpscRingBuf_t *p);
 bool Is_full_SpscRingBuf(SpscRingBuf_t *p);
@@ -281,10 +304,11 @@ ssize_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args, size_t size);
  * 
  * @p : addr of ring buffer
  * @buf : buffer to store data in the ring buffer
+ * @size : size of buf, must not exceed the base obj size of ring buffer
  * 
  * Return the tail where been popped, -1 if empty
  */
-ssize_t Pop_MpscRingBuf(MpscRingBuf_t *p, void *buf);
+ssize_t Pop_MpscRingBuf(MpscRingBuf_t *p, void *buf, size_t size);
 
 /**
  * Execute callback immediately after getting the avalible mem in ring buffer
@@ -364,10 +388,11 @@ ssize_t Push_MpmcRingBuf(MpmcRingBuf_t *p, void *args, size_t size);
  * 
  * @p : addr of ring buffer
  * @buf : buffer to store data in the ring buffer
+ * @size : size of buf, must not exceed the base obj size of ring buffer
  * 
  * Return the tail index where data was popped, -1 if empty or contention
  */
-ssize_t Pop_MpmcRingBuf(MpmcRingBuf_t *p, void *buf);
+ssize_t Pop_MpmcRingBuf(MpmcRingBuf_t *p, void *buf, size_t size);
 
 /**
  * Execute callback immediately after getting the avalible mem in ring buffer
@@ -444,10 +469,11 @@ ssize_t Push_BlockRingBuf(BlockRingBuf_t *p, void *args, size_t size);
  * 
  * @p : addr of ring buffer
  * @buf : buffer to store data in the ring buffer
+ * @size : size of buf, must not exceed the base obj size of ring buffer
  * 
  * Return the tail index where data was popped
  */
-ssize_t Pop_BlockRingBuf(BlockRingBuf_t *p, void *buf);
+ssize_t Pop_BlockRingBuf(BlockRingBuf_t *p, void *buf, size_t size);
 
 /**
  * Not yet implemented

@@ -64,9 +64,12 @@ ssize_t Push_MpmcRingBuf(MpmcRingBuf_t *p, void *args, size_t size)
     return expected_head;
 }
 
-ssize_t Pop_MpmcRingBuf(MpmcRingBuf_t *p, void *buf)
+ssize_t Pop_MpmcRingBuf(MpmcRingBuf_t *p, void *buf, size_t size)
 {
     RingBuf_t *r = (RingBuf_t *) p;
+    if (size > r->objSize_) {
+        return RINGBUF_POP_SIZE_TOO_LARGE;
+    }
 
     size_t expected_tail = atomic_load_explicit(&r->tail_, memory_order_relaxed);  /* 取得目前 tail */
     size_t idx = expected_tail & r->mask_;
@@ -92,7 +95,7 @@ ssize_t Pop_MpmcRingBuf(MpmcRingBuf_t *p, void *buf)
         /* CAS 失敗，tail 已被其他 consumer 更新 */
         return RINGBUF_CONTENTION;
     }
-    memcpy(buf, &GET_BUFFER(r)[idx * r->objSize_], r->objSize_);
+    memcpy(buf, &GET_BUFFER(r)[idx * r->objSize_], size);
 
     /* 將 slot 的 seq 設為 當下的 tail + objNum，表示這格是空的 */
     atomic_store_explicit(&GET_SLOT(r, idx), expected_tail + r->objNum_, memory_order_release);

@@ -48,9 +48,13 @@ ssize_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args, size_t size)
     return curr_head;
 }
 
-ssize_t Pop_MpscRingBuf(MpscRingBuf_t *p, void *buf)
+ssize_t Pop_MpscRingBuf(MpscRingBuf_t *p, void *buf, size_t size)
 {
     RingBuf_t *r = (RingBuf_t *) p;
+    if (size > r->objSize_) {
+        return RINGBUF_POP_SIZE_TOO_LARGE;
+    }
+
     const size_t curr_tail = atomic_load_explicit(&r->tail_, memory_order_relaxed);
     if (local_head == curr_tail) {
         local_head = atomic_load_explicit(&r->head_, memory_order_acquire);
@@ -69,7 +73,7 @@ ssize_t Pop_MpscRingBuf(MpscRingBuf_t *p, void *buf)
         return RINGBUF_SLOT_STAT_UNKNOWN;
     }
 
-    memcpy(buf, &GET_BUFFER(r)[idx * r->objSize_], r->objSize_);
+    memcpy(buf, &GET_BUFFER(r)[idx * r->objSize_], size);
     atomic_store_explicit(&GET_SLOT(r, idx), SLOT_EMPTY, memory_order_relaxed);
     atomic_store_explicit(&r->tail_, curr_tail + 1, memory_order_release);
     return curr_tail;
