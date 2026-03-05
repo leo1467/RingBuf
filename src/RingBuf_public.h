@@ -44,7 +44,7 @@
 #define RINGBUF_INVALID_PARAM       -104 /**< Invalid parameters */
 #define RINGBUF_NO_MAPPING_TYPE     -105 /**< No mapping type specified */
 #define RINGBUF_CAPACITY_WRONG      -106 /**< Capacity is not the power of two */
-#define RINGBUF_MAPPING_NOT_EXITS   -107 /**< Use MAP_EXIST but memory mapping does not exist */
+#define RINGBUF_MAPPING_NOT_EXISTS  -107 /**< Use MAP_EXISTS but memory mapping does not exist */
 #define RINGBUF_MAPPING_SIZE_ERROR  -108 /**< Memory mapping size mismatch */
 #define RINGBUF_PUSH_SIZE_TOO_LARGE -109 /**< Push size exceeded base obj size */
 #define RINGBUF_POP_SIZE_TOO_LARGE  -110 /**< Pop size exceeded base obj size */
@@ -62,7 +62,7 @@
  * Mpmc: multi producer, multi consumer
  * Block: blocking ring buffer, multi producer, multi consumer
  * 
- * REMINDER: SLOW PRODUCERS WILL BLOCK CONSUMERS READ
+ * @warning Slow producers will block consumer reads.
  */
 typedef struct _SpscRingBuf SpscRingBuf_t;
 typedef struct _MpscRingBuf MpscRingBuf_t;
@@ -77,16 +77,16 @@ enum RingBufMappingType {
     MAP_MALLOC  = 1 << 24, /**< Default, using malloc to allocate ring buffer */
     MAP_SHM     = 1 << 25, /**< Mapping ring buffer onto shared memory */
     MAP_NEW     = 1 << 26, /**< Default, mapping to new chunk of memory */
-    MAP_EXIST   = 1 << 27, /**< Mapping to a existing shared memory */
+    MAP_EXISTS  = 1 << 27, /**< Mapping to an existing shared memory */
 };
 
 /**
  * Callback for callback type functions
  * Used in callback-based pop functions to avoid extra memory copy
  *
- * @p    : pointer to the memory location inside the ring buffer (the popped object)
+ * @param p pointer to the memory location inside the ring buffer (the popped object)
  *         DO NOT TRY TO MODIFY ITS CONTENTS 
- * @args : user-defined arguments for use inside the callback
+ * @param args user-defined arguments for use inside the callback
  */
 typedef int(*Pop_cb)(const void *p, void *args);
 
@@ -95,7 +95,10 @@ extern "C" {
 #endif
 
 /**
- * Helper function to get error description
+ * @brief Return a human-readable description of a RINGBUF_* error code
+ *
+ * @param error_code negative error code returned by any RingBuf API function
+ * @return null-terminated string describing the error; never NULL
  */
 const char* RingBuf_strerror(int error_code);
 
@@ -121,31 +124,31 @@ const char* RingBuf_strerror(int error_code);
 /**
  * Generate Spsc ring buffer (implicit error via errno - legacy)
  *
- * @objNum : number of objs can be placed into ring buffer
- * @objSize : size of obj instance (will be automatically padded to 64-byte
+ * @param objNum number of objs can be placed into ring buffer
+ * @param objSize size of obj instance (will be automatically padded to 64-byte
  *            cache line boundary to prevent false sharing in multi-threaded scenarios)
- * @shmPath : path for file backend shared memory,
+ * @param shmPath path for file backend shared memory,
  *            will map to anonymous if not given
- * @prot : Oring RingBufMappingType
- * @flag : The same as mmap, MAP_SHARED, MAP_PRIVATE, MAP_POPULATED...
+ * @param prot bitwise OR of RingBufMappingType values
+ * @param flag The same as mmap, MAP_SHARED, MAP_PRIVATE, MAP_POPULATED...
  *
- * Return the addr of ring buffer, NULL on error (check errno or use Get_SpscRingBuf_e)
+ * @return the addr of ring buffer, NULL on error (check errno or use Get_SpscRingBuf_e)
  */
 SpscRingBuf_t *Get_SpscRingBuf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag);
 
 /**
  * Generate Spsc ring buffer (explicit error handling)
  *
- * @out : output parameter to store ring buffer pointer
- * @objNum : number of objs can be placed into ring buffer
- * @objSize : size of obj instance (will be automatically padded to 64-byte
+ * @param out output parameter to store ring buffer pointer
+ * @param objNum number of objs can be placed into ring buffer
+ * @param objSize size of obj instance (will be automatically padded to 64-byte
  *            cache line boundary to prevent false sharing in multi-threaded scenarios)
- * @shmPath : path for file backend shared memory,
+ * @param shmPath path for file backend shared memory,
  *            will map to anonymous if not given
- * @prot : Oring RingBufMappingType
- * @flag : The same as mmap, MAP_SHARED, MAP_PRIVATE, MAP_POPULATED...
+ * @param prot bitwise OR of RingBufMappingType values
+ * @param flag The same as mmap, MAP_SHARED, MAP_PRIVATE, MAP_POPULATED...
  *
- * Return error code (RINGBUF_SUCCESS or negative error code)
+ * @return error code (RINGBUF_SUCCESS or negative error code)
  * On success, *out will contain ring buffer address
  * On error, *out will be NULL and return value indicates error
  */
@@ -154,39 +157,41 @@ int Get_SpscRingBuf_e(SpscRingBuf_t **out, const size_t objNum, const size_t obj
 /**
  * Destructor for ring buffer
  * 
- * @p : addr of ring buffer
+ * @param p addr of ring buffer
  */
 void Del_SpscRingBuf(SpscRingBuf_t *p);
 
 /**
  * Get the addr that can be written
  * 
- * @p : addr of ring buffer
+ * @param p addr of ring buffer
  * 
- * Return the addr of available mem in ring buffer
- * which is ready to be written, return null if full
+ * @return the addr of available mem in ring buffer, which is ready to be written, return null if full
  */
 void *Begin_push_SpscRingBuf(SpscRingBuf_t *p);
 
 /**
- * Followed up by begin push when finish writing
- * A signal to consumer that the mem is ready to be read 
+ * Followed up by Begin_push when finished writing.
+ * Signals to the consumer that the slot is ready to be read.
+ *
+ * @param p addr of ring buffer
  */
 void End_push_SpscRingBuf(SpscRingBuf_t *p);
 
 /**
  * Get the addr that can be read
  * 
- * @p : addr of ring buffer
+ * @param p addr of ring buffer
  * 
- * Return the addr of available mem in ring buffer
- * which is ready to be read, return null if empty
+ * @return the addr of available mem in ring buffer, which is ready to be read, return null if empty
  */
 void *Begin_pop_SpscRingBuf(SpscRingBuf_t *p);
 
 /**
- * Followed up by begin pop when finish reading
- * A signal to producer that the mem is ready to be written 
+ * Followed up by Begin_pop when finished reading.
+ * Signals to the producer that the slot is ready to be written.
+ *
+ * @param p addr of ring buffer
  */
 void End_pop_SpscRingBuf(SpscRingBuf_t *p);
 
@@ -194,13 +199,11 @@ void End_pop_SpscRingBuf(SpscRingBuf_t *p);
 /**
  * Push memory into ring buffer
  * 
- * Spin waits if full
+ * @param p addr of ring buffer
+ * @param args obj that need to write into ring buffer
+ * @param size size of memory to push; must not exceed the base object size of ring buffer
  * 
- * @p : addr of ring buffer
- * @args : obj that need to write into ring buffer
- * @size : size of memory to push, no exceed base obj size of ring buffer
- * 
- * Return the head index where data was pushed
+ * @return the head index where data was pushed(>= 0), or RINGBUF_* error code if error
  */
 ssize_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args, size_t size);
 #endif
@@ -208,13 +211,11 @@ ssize_t Push_SpscRingBuf(SpscRingBuf_t *p, void *args, size_t size);
 /**
  * Pop memory from ring buffer
  * 
- * Spin waits until finished
+ * @param p addr of ring buffer
+ * @param buf buffer to store data in the ring buffer
+ * @param size size of buf, must not exceed the base obj size of ring buffer
  * 
- * @p : addr of ring buffer
- * @buf : buffer to store data in the ring buffer
- * @size : size of buf, must not exceed the base obj size of ring buffer
- * 
- * Return the tail index where data was popped, -1 if empty
+ * @return the tail index where data was popped(>= 0), or RINGBUF_* error code if error
  */
 ssize_t Pop_SpscRingBuf(SpscRingBuf_t *p, void *buf, size_t size);
 
@@ -230,49 +231,50 @@ size_t Size_SpscRingBuf(SpscRingBuf_t *p);
 /**
  * Generate Mpsc ring buffer
  *
- * @objNum : number of objs can be placed into ring buffer
- * @objSize : size of obj instance (will be automatically padded to 64-byte
+ * @param objNum number of objs can be placed into ring buffer
+ * @param objSize size of obj instance (will be automatically padded to 64-byte
  *            cache line boundary to prevent false sharing in multi-threaded scenarios)
- * @shmPath : path for file backend shared memory,
+ * @param shmPath path for file backend shared memory,
  *            will map to anonymous if not given
- * @prot : Oring RingBufMappingType
- * @flag : The same as mmap, MAP_SHARED, MAP_PRIVATE, MAP_POPULATED...
+ * @param prot bitwise OR of RingBufMappingType values
+ * @param flag The same as mmap, MAP_SHARED, MAP_PRIVATE, MAP_POPULATED...
  *
- * Return the addr of ring buffer
+ * @return the addr of ring buffer, NULL on error (check errno or use Get_MpscRingBuf_e)
  */
 MpscRingBuf_t *Get_MpscRingBuf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag);
 
 /**
  * Generate Mpsc ring buffer (explicit error handling)
  *
- * @out : output parameter to store ring buffer pointer
- * @objNum : number of objs can be placed into ring buffer
- * @objSize : size of obj instance
- * @shmPath : path for file backend shared memory,
+ * @param out output parameter to store ring buffer pointer
+ * @param objNum number of objs can be placed into ring buffer
+ * @param objSize size of obj instance
+ * @param shmPath path for file backend shared memory,
  *            will map to anonymous if not given
- * @prot : Oring RingBufMappingType
- * @flag : The same as mmap, MAP_SHARED, MAP_PRIVATE, MAP_POPULATED...
+ * @param prot bitwise OR of RingBufMappingType values
+ * @param flag The same as mmap, MAP_SHARED, MAP_PRIVATE, MAP_POPULATED...
  *
- * Return error code (RINGBUF_SUCCESS or negative error code)
+ * @return error code (RINGBUF_SUCCESS or negative error code)
+ * On success, *out will contain ring buffer address
+ * On error, *out will be NULL and return value indicates error
  */
 int Get_MpscRingBuf_e(MpscRingBuf_t **out, const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag);
 
 /**
  * Destructor for ring buffer
- * @p : addr of ring buffer
+ * @param p addr of ring buffer
  */
 void Del_MpscRingBuf(MpscRingBuf_t *p);
 
 #ifndef DEBUG
 /**
  * Push memory into ring buffer
- * Spin waits other thread to finish writing which is ahead of this thread
  * 
- * @p : addr of ring buffer
- * @args : obj that need to write into ring buffer
- * @size : size of memory to push, no exceed base obj size of ring buffer
+ * @param p addr of ring buffer
+ * @param args obj that need to write into ring buffer
+ * @param size size of memory to push; must not exceed the base object size of ring buffer
  * 
- * Return the head index where data was pushed, -1 if full or contention
+ * @return the head index where data was pushed(>= 0), or RINGBUF_* error code if error
  */
 ssize_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args, size_t size);
 #endif
@@ -280,22 +282,22 @@ ssize_t Push_MpscRingBuf(MpscRingBuf_t *p, void *args, size_t size);
 /**
  * Pop memory from ring buffer
  * 
- * @p : addr of ring buffer
- * @buf : buffer to store data in the ring buffer
- * @size : size of buf, must not exceed the base obj size of ring buffer
+ * @param p addr of ring buffer
+ * @param buf buffer to store data in the ring buffer
+ * @param size size of buf, must not exceed the base obj size of ring buffer
  * 
- * Return the tail where been popped, -1 if empty
+ * @return the tail index where data was popped(>= 0), or RINGBUF_* error code if error
  */
 ssize_t Pop_MpscRingBuf(MpscRingBuf_t *p, void *buf, size_t size);
 
 /**
- * Execute callback immediately after getting the avalible mem in ring buffer
- * Reduce one memory copy
- * 
- * @p : addr of ring buffer
- * cb : callback for excecute
- * 
- * Return the value returned by cb, -1 if empty
+ * Execute callback immediately after getting the available slot in ring buffer.
+ * Reduces one memory copy compared to Pop.
+ *
+ * @param p    addr of ring buffer
+ * @param cb   callback to execute; receives a pointer to the slot and @p args
+ * @param args user-defined argument forwarded to @p cb
+ * @return value returned by @p cb, or RINGBUF_* error code if error
  */
 int Pop_w_cb_MpscRingBuf(MpscRingBuf_t *p, Pop_cb cb, void *args);
 
@@ -313,36 +315,38 @@ size_t Size_MpscRingBuf(MpscRingBuf_t *p);
 /**
  * Generate Mpmc ring buffer
  *
- * @objNum : number of objs can be placed into ring buffer
- * @objSize : size of obj instance (will be automatically padded to 64-byte
+ * @param objNum number of objs can be placed into ring buffer
+ * @param objSize size of obj instance (will be automatically padded to 64-byte
  *            cache line boundary to prevent false sharing in multi-threaded scenarios)
- * @shmPath : path for file backend shared memory,
+ * @param shmPath path for file backend shared memory,
  *            will map to anonymous if not given
- * @prot : Oring RingBufMappingType
- * @flag : The same as mmap, MAP_SHARED, MAP_PRIVATE, MAP_POPULATED...
+ * @param prot bitwise OR of RingBufMappingType values
+ * @param flag The same as mmap, MAP_SHARED, MAP_PRIVATE, MAP_POPULATED...
  *
- * Return the addr of ring buffer
+ * @return the addr of ring buffer, NULL on error (check errno or use Get_MpmcRingBuf_e)
  */
 MpmcRingBuf_t *Get_MpmcRingBuf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag);
 
 /**
  * Generate Mpmc ring buffer (explicit error handling)
  *
- * @out : output parameter to store ring buffer pointer
- * @objNum : number of objs can be placed into ring buffer
- * @objSize : size of obj instance
- * @shmPath : path for file backend shared memory,
+ * @param out output parameter to store ring buffer pointer
+ * @param objNum number of objs can be placed into ring buffer
+ * @param objSize size of obj instance
+ * @param shmPath path for file backend shared memory,
  *            will map to anonymous if not given
- * @prot : Oring RingBufMappingType
- * @flag : The same as mmap, MAP_SHARED, MAP_PRIVATE, MAP_POPULATED...
+ * @param prot bitwise OR of RingBufMappingType values
+ * @param flag The same as mmap, MAP_SHARED, MAP_PRIVATE, MAP_POPULATED...
  *
- * Return error code (RINGBUF_SUCCESS or negative error code)
+ * @return error code (RINGBUF_SUCCESS or negative error code)
+ * On success, *out will contain ring buffer address
+ * On error, *out will be NULL and return value indicates error
  */
 int Get_MpmcRingBuf_e(MpmcRingBuf_t **out, const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag);
 
 /**
  * Destructor for ring buffer
- * @p : addr of ring buffer
+ * @param p addr of ring buffer
  */
 void Del_MpmcRingBuf(MpmcRingBuf_t *p);
 
@@ -350,11 +354,11 @@ void Del_MpmcRingBuf(MpmcRingBuf_t *p);
 /**
  * Push memory into ring buffer, producers don't block from each other
  * 
- * @p : addr of ring buffer
- * @args : obj that need to write into ring buffer
- * @size : size of memory to push, no exceed base obj size of ring buffer
+ * @param p addr of ring buffer
+ * @param args obj that need to write into ring buffer
+ * @param size size of memory to push; must not exceed the base object size of ring buffer
  * 
- * Return the head index where data was pushed, -1 if full or contention
+ * @return the head index where data was pushed(>= 0), or RINGBUF_* error code if error
  */
 ssize_t Push_MpmcRingBuf(MpmcRingBuf_t *p, void *args, size_t size);
 #endif
@@ -362,22 +366,23 @@ ssize_t Push_MpmcRingBuf(MpmcRingBuf_t *p, void *args, size_t size);
 /**
  * Pop memory from ring buffer
  * 
- * @p : addr of ring buffer
- * @buf : buffer to store data in the ring buffer
- * @size : size of buf, must not exceed the base obj size of ring buffer
+ * @param p addr of ring buffer
+ * @param buf buffer to store data in the ring buffer
+ * @param size size of buf, must not exceed the base obj size of ring buffer
  * 
- * Return the tail index where data was popped, -1 if empty or contention
+ * @return the tail index where data was popped(>= 0), or RINGBUF_* error code if error
  */
 ssize_t Pop_MpmcRingBuf(MpmcRingBuf_t *p, void *buf, size_t size);
 
 /**
- * Execute callback immediately after getting the avalible mem in ring buffer
- * Reduce one memory copy
- * 
- * @p : addr of ring buffer
- * cb : callback for excecute
- * 
- * Return the value returned by cb, -1 if empty or contention
+ * Execute callback immediately after getting the available slot in ring buffer.
+ * Reduces one memory copy compared to Pop.
+ *
+ * @param p    addr of ring buffer
+ * @param cb   callback to execute; receives a pointer to the slot and @p args
+ * @param args user-defined argument forwarded to @p cb
+ *
+ * @return value returned by @p cb, or RINGBUF_* error code if error
  */
 int Pop_w_cb_MpmcRingBuf(MpmcRingBuf_t *p, Pop_cb cb, void *args);
 
@@ -388,36 +393,38 @@ int Pop_w_cb_MpmcRingBuf(MpmcRingBuf_t *p, Pop_cb cb, void *args);
 /**
  * Generate Blocking ring buffer
  *
- * @objNum : number of objs can be placed into ring buffer
- * @objSize : size of obj instance (will be automatically padded to 64-byte
+ * @param objNum number of objs can be placed into ring buffer
+ * @param objSize size of obj instance (will be automatically padded to 64-byte
  *            cache line boundary to prevent false sharing in multi-threaded scenarios)
- * @shmPath : path for file backend shared memory,
+ * @param shmPath path for file backend shared memory,
  *            will map to anonymous if not given
- * @prot : Oring RingBufMappingType
- * @flag : The same as mmap, MAP_SHARED, MAP_PRIVATE, MAP_POPULATED...
+ * @param prot bitwise OR of RingBufMappingType values
+ * @param flag The same as mmap, MAP_SHARED, MAP_PRIVATE, MAP_POPULATED...
  *
- * Return the addr of ring buffer
+ * @return the addr of ring buffer, NULL on error (check errno or use Get_BlockRingBuf_e)
  */
 BlockRingBuf_t *Get_BlockRingBuf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag);
 
 /**
  * Generate Blocking ring buffer (explicit error handling)
  *
- * @out : output parameter to store ring buffer pointer
- * @objNum : number of objs can be placed into ring buffer
- * @objSize : size of obj instance
- * @shmPath : path for file backend shared memory,
+ * @param out output parameter to store ring buffer pointer
+ * @param objNum number of objs can be placed into ring buffer
+ * @param objSize size of obj instance
+ * @param shmPath path for file backend shared memory,
  *            will map to anonymous if not given
- * @prot : Oring RingBufMappingType
- * @flag : The same as mmap, MAP_SHARED, MAP_PRIVATE, MAP_POPULATED...
+ * @param prot bitwise OR of RingBufMappingType values
+ * @param flag The same as mmap, MAP_SHARED, MAP_PRIVATE, MAP_POPULATED...
  *
- * Return error code (RINGBUF_SUCCESS or negative error code)
+ * @return error code (RINGBUF_SUCCESS or negative error code)
+ * On success, *out will contain ring buffer address
+ * On error, *out will be NULL and return value indicates error
  */
 int Get_BlockRingBuf_e(BlockRingBuf_t **out, const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag);
 
 /**
  * Destructor for ring buffer
- * @p : addr of ring buffer
+ * @param r addr of ring buffer
  */
 void Del_BlockRingBuf(BlockRingBuf_t *r);
 
@@ -427,11 +434,11 @@ void Del_BlockRingBuf(BlockRingBuf_t *r);
  * 
  * Blocking waits if full
  * 
- * @p : addr of ring buffer
- * @args : obj that need to write into ring buffer
- * @size : size of memory to push, no exceed base obj size of ring buffer
+ * @param p addr of ring buffer
+ * @param args obj that need to write into ring buffer
+ * @param size size of memory to push; must not exceed the base object size of ring buffer
  * 
- * Return the head index where data was pushed
+ * @return the head index where data was pushed(>= 0), or RINGBUF_* error code if error
  */
 ssize_t Push_BlockRingBuf(BlockRingBuf_t *p, void *args, size_t size);
 #endif
@@ -441,23 +448,24 @@ ssize_t Push_BlockRingBuf(BlockRingBuf_t *p, void *args, size_t size);
  * 
  * Blocking waits if empty
  * 
- * @p : addr of ring buffer
- * @buf : buffer to store data in the ring buffer
- * @size : size of buf, must not exceed the base obj size of ring buffer
+ * @param p addr of ring buffer
+ * @param buf buffer to store data in the ring buffer
+ * @param size size of buf, must not exceed the base obj size of ring buffer
  * 
- * Return the tail index where data was popped
+ * @return the tail index where data was popped(>= 0), or RINGBUF_* error code if error
  */
 ssize_t Pop_BlockRingBuf(BlockRingBuf_t *p, void *buf, size_t size);
 
 /**
- * Not yet implemented
- * Pop a chunck of memory from ring buffer
+ * Pop a chunk of memory from ring buffer
  * 
- * @p : addr of ring buffer
- * @buf : buffer to store data in the ring buffer
- * @max_num : max number to store into buffer
+ * @note Not yet implemented
  *
- * Retrun the number of objs popped
+ * @param p addr of ring buffer
+ * @param buf buffer to store data in the ring buffer
+ * @param max_num max number to store into buffer
+ *
+ * @return the number of objs popped (> 0), or RINGBUF_* error code if error
  */
 ssize_t Batch_pop_BlockRingBuf(BlockRingBuf_t *p, void *buf, size_t max_num);
 

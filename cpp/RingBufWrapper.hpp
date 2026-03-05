@@ -40,7 +40,7 @@
  *   - The ring buffer struct lives in shared memory; the RingBuf object itself
  *     holds a std::shared_ptr that calls the appropriate destructor on last copy
  *   - Do NOT pass the raw pointer obtained from Get_RingBuf() across process
- *     boundaries; Init() with MAP_EXIST in the other process instead
+ *     boundaries; Init() with MAP_EXISTS in the other process instead
  */
 
 #include <cerrno>
@@ -487,15 +487,15 @@ public:
      *                  MAP_MALLOC  — allocate with malloc (single process only)
      *                  MAP_SHM     — file-backed shared memory (cross-process)
      *                  MAP_NEW     — create a new mapping (fails if already exists)
-     *                  MAP_EXIST   — attach to an existing mapping (fails if not found)
+     *                  MAP_EXISTS  — attach to an existing mapping (fails if not found)
      * @param flag    additional mmap flags passed through (e.g. MAP_SHARED, MAP_POPULATE)
      *                Pass 0 for defaults.
      *
      * @return RINGBUF_SUCCESS (0) on success, or a negative RINGBUF_* error code
      *         Common errors:
      *           RINGBUF_CAPACITY_WRONG      — ObjNum is not a power of two
-     *           RINGBUF_MAPPING_NOT_EXITS   — MAP_EXIST but path does not exist
-     *           RINGBUF_MAPPING_SIZE_ERROR  — MAP_EXIST but size mismatch
+     *           RINGBUF_MAPPING_NOT_EXISTS  — MAP_EXISTS but path does not exist
+     *           RINGBUF_MAPPING_SIZE_ERROR  — MAP_EXISTS but size mismatch
      *           RINGBUF_INVALID_PARAM       — nullptr or invalid arguments
      *
      * Example:

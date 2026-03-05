@@ -117,12 +117,14 @@ void func(Obj &o, int n)
         return;
     }
     decltype(r) s = r;
-    Obj j;
+    Obj j, k;
+    char buf[2048] = {};
     for (int i = 0; i < n; ++i) {
+        r.Push(o);
         r.Push(o);
 
         r.Pop(j); 
-        r.Pop(&j);
+        r.Pop(*reinterpret_cast<Obj *>(buf));
         x = s.Pop_w_cb(cb, &j); // fast
         x = s.Pop_w_cb(cbb); // none fast
         x = s.Pop_w_cb(cbbb, &j); // none fast

@@ -31,7 +31,7 @@ const char* RingBuf_strerror(int error_code)
         case RINGBUF_INVALID_PARAM:         return "Invalid parameters";
         case RINGBUF_NO_MAPPING_TYPE:       return "No mapping type specified";
         case RINGBUF_CAPACITY_WRONG:        return "Capacity must be the power of two and >= 2";
-        case RINGBUF_MAPPING_NOT_EXITS:     return "Use MAP_EXIST but memory mapping does not exist";
+        case RINGBUF_MAPPING_NOT_EXISTS:    return "Use MAP_EXISTS but memory mapping does not exist";
         case RINGBUF_MAPPING_SIZE_ERROR:    return "Mapping size mismatch";
         case RINGBUF_PUSH_SIZE_TOO_LARGE:   return "Push size exceeded base obj size";
         case RINGBUF_SLOT_WRITING_DATA:     return "Producer is writing slot";
@@ -118,13 +118,13 @@ static void *get_buf_shm(size_t totalSz, int *fd, int prot, int flag, const char
         if (rc < 0) {
             return NULL;
         }
-    } else if (prot & MAP_EXIST) {
+    } else if (prot & MAP_EXISTS) {
         struct stat st;
         if (fstat(*fd, &st) == -1) {
             return NULL;
         }
         if (st.st_size == 0) {
-            errno = RINGBUF_MAPPING_NOT_EXITS;
+            errno = RINGBUF_MAPPING_NOT_EXISTS;
             return NULL;
         }
         if ((size_t)st.st_size != totalSz) {
@@ -175,7 +175,7 @@ RingBuf_t *get_buf(const size_t objNum, const size_t objSize, const char *shmPat
     if (useMalloc) {
         p = get_buf_malloc(info.total_size, &fd);
     } else if (useSHM) {
-        needNew = !(prot & MAP_EXIST);
+        needNew = !(prot & MAP_EXISTS);
         p = get_buf_shm(info.total_size, &fd, prot, flag, shmPath, needNew);
     }
 
@@ -256,7 +256,7 @@ BRingBuf_t *get_block_buf(const size_t objNum, const size_t objSize, const char 
     if (useMalloc) {
         p = get_buf_malloc(totalSize, &fd);
     } else if (useSHM) {
-        needNew = !(prot & MAP_EXIST);
+        needNew = !(prot & MAP_EXISTS);
         p = get_buf_shm(totalSize, &fd, prot, flag, shmPath, needNew);
     }
 
