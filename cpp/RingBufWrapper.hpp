@@ -64,9 +64,9 @@
  * source file, line number, enclosing function name, and a user-supplied
  * printf-style format string.
  *
- * @expr : boolean expression to test
- * @fmt  : printf-style format string for the failure message
- * @...  : optional arguments for @fmt
+ * @param expr boolean expression to test
+ * @param fmt  printf-style format string for the failure message
+ * @param ...  optional arguments for @fmt
  *
  * Example:
  *   my_assert(ptr != nullptr, "allocation failed, size=%zu", requested);
@@ -226,9 +226,9 @@ inline constexpr bool is_one_of_v = (std::is_same_v<T, Options> || ...);
 /**
  * RingBuf - RAII C++ wrapper for the RingBuf C library
  *
- * @RingType : one of RingBufType::Spsc / Mpsc / Mpmc / Block
- * @Obj      : the element type stored in the ring buffer
- * @ObjNum   : capacity (must be a power of two, >= 2)
+ * @tparam RingType one of RingBufType::Spsc / Mpsc / Mpmc / Block
+ * @tparam Obj      the element type stored in the ring buffer
+ * @tparam ObjNum   capacity (must be a power of two, >= 2)
  *
  * The underlying C ring buffer is allocated/mapped by Init() and released
  * automatically when the last copy of the RingBuf object is destroyed
@@ -255,7 +255,7 @@ public:
      *
      * Useful when calling C APIs directly that are not exposed by this wrapper.
      *
-     * Return: pointer to the ring buffer struct, nullptr if Init() has not
+     * @return pointer to the ring buffer struct, nullptr if Init() has not
      *         been called or failed
      */
     typename Base::type *Get_RingBuf() const noexcept { return r_; }
@@ -266,9 +266,9 @@ public:
      * Accepts any value category of Obj (lvalue, rvalue, const).
      * The object is copied into the ring buffer's internal slot.
      *
-     * @obj : object to push; must be exactly of type Obj (enforced by static_assert)
+     * @param obj object to push; must be exactly of type Obj (enforced by static_assert)
      *
-     * Return: slot index where data was written (>= 0), or negative RINGBUF_* error code
+     * @return slot index where data was written (>= 0), or negative RINGBUF_* error code
      *         Common errors: RINGBUF_FULL
      */
     template <typename T>
@@ -284,10 +284,10 @@ public:
      * Low-level overload for pushing an arbitrary memory region.
      * @size must not exceed the base object size the ring buffer was created with.
      *
-     * @data : pointer to source data
-     * @size : number of bytes to copy
+     * @param data pointer to source data
+     * @param size number of bytes to copy
      *
-     * Return: slot index (>= 0), or negative RINGBUF_* error code
+     * @return slot index (>= 0), or negative RINGBUF_* error code
      *         Common errors: RINGBUF_FULL, RINGBUF_PUSH_SIZE_TOO_LARGE
      */
     ssize_t Push(void *data, size_t size) { return Base::Push(r_, data, size); }
@@ -297,9 +297,9 @@ public:
      *
      * Copies the front element into @obj and advances the consumer index.
      *
-     * @obj : output parameter; must be exactly of type Obj (enforced by static_assert)
+     * @param obj output parameter; must be exactly of type Obj (enforced by static_assert)
      *
-     * Return: slot index where data was read (>= 0), or negative RINGBUF_* error code
+     * @return slot index where data was read (>= 0), or negative RINGBUF_* error code
      *         Common errors: RINGBUF_EMPTY
      */
     template <typename T>
@@ -340,11 +340,11 @@ public:
      *       The trampoline always passes the buffer pointer as the FIRST argument
      *       to @callback, followed by the unpacked @args.
      *
-     * @callback : any callable.  The first argument received inside the callback
-     *             will always be a pointer (void* or const void*) to the ring
-     *             buffer slot.  Additional arguments come from @args.
-     * @args     : zero or more extra arguments forwarded to @callback after the
-     *             buffer pointer.
+     * @param callback any callable.  The first argument received inside the callback
+     *                 will always be a pointer (void* or const void*) to the ring
+     *                 buffer slot.  Additional arguments come from @args.
+     * @param args     zero or more extra arguments forwarded to @callback after the
+     *                 buffer pointer.
      *
      * Supported callback signatures (✅ compiles, ❌ does not compile):
      *   ✅ int(const void *p, void *args)        — stateless: fast path
@@ -357,7 +357,7 @@ public:
      *   ❌ void(const void *p)                   — return type must be convertible to int
      *   ❌ int()                                 — trampoline always passes at least one arg, which is callback
      *
-     * Return: value returned by @callback, or negative RINGBUF_* error code
+     * @return value returned by @callback, or negative RINGBUF_* error code
      *         if the ring buffer is empty / contention
      *
      * Warning:
@@ -463,9 +463,9 @@ public:
     /**
      * Get_RingBuf_strerror - Return a human-readable description of a RINGBUF_* error code
      *
-     * @err : negative error code returned by Init(), Push(), Pop(), or Pop_w_cb()
+     * @param err negative error code returned by Init(), Push(), Pop(), or Pop_w_cb()
      *
-     * Return: a null-terminated string describing the error;
+     * @return a null-terminated string describing the error;
      *         never nullptr (unknown codes return a generic message)
      *
      * Example:
@@ -481,17 +481,17 @@ public:
      * On success the internal shared_ptr is set up so that the last copy of
      * this RingBuf object will automatically release the ring buffer.
      *
-     * @shmPath : path used as the file-backed shared memory name (e.g. "/dev/shm/myring")
-     *            Pass nullptr to use anonymous (non-shared) memory.
-     * @prot    : OR of RingBufMappingType flags
-     *              MAP_MALLOC  — allocate with malloc (single process only)
-     *              MAP_SHM     — file-backed shared memory (cross-process)
-     *              MAP_NEW     — create a new mapping (fails if already exists)
-     *              MAP_EXIST   — attach to an existing mapping (fails if not found)
-     * @flag    : additional mmap flags passed through (e.g. MAP_SHARED, MAP_POPULATE)
-     *            Pass 0 for defaults.
+     * @param shmPath path used as the file-backed shared memory name (e.g. "/dev/shm/myring")
+     *                Pass nullptr to use anonymous (non-shared) memory.
+     * @param prot    OR of RingBufMappingType flags
+     *                  MAP_MALLOC  — allocate with malloc (single process only)
+     *                  MAP_SHM     — file-backed shared memory (cross-process)
+     *                  MAP_NEW     — create a new mapping (fails if already exists)
+     *                  MAP_EXIST   — attach to an existing mapping (fails if not found)
+     * @param flag    additional mmap flags passed through (e.g. MAP_SHARED, MAP_POPULATE)
+     *                Pass 0 for defaults.
      *
-     * Return: RINGBUF_SUCCESS (0) on success, or a negative RINGBUF_* error code
+     * @return RINGBUF_SUCCESS (0) on success, or a negative RINGBUF_* error code
      *         Common errors:
      *           RINGBUF_CAPACITY_WRONG      — ObjNum is not a power of two
      *           RINGBUF_MAPPING_NOT_EXITS   — MAP_EXIST but path does not exist

@@ -122,11 +122,12 @@ void func(Obj &o, int n)
         r.Push(o);
 
         r.Pop(j); 
+        r.Pop(&j);
         x = s.Pop_w_cb(cb, &j); // fast
         x = s.Pop_w_cb(cbb); // none fast
         x = s.Pop_w_cb(cbbb, &j); // none fast
         x = s.Pop_w_cb(cbbbb, &i, &i); // none fast
-        x = s.Pop_w_cb(cbbbbb, &i, &i); // 第一個參數不是 void* 的 callback 不支援
+        // x = s.Pop_w_cb(cbbbbb, &i, &i); // 第一個參數不是 void* 的 callback 不支援
 
         x = s.Pop_w_cb(cb1, &j); // none fast
         x = s.Pop_w_cb(cb2, &j); // fast
