@@ -310,6 +310,20 @@ public:
     }
 
     /**
+     * Pop - Pop raw memory from the ring buffer
+     *
+     * Low-level overload for reading into an arbitrary memory region.
+     * @p size must not exceed the base object size the ring buffer was created with.
+     *
+     * @param data pointer to destination buffer
+     * @param size number of bytes to copy
+     *
+     * @return slot index (>= 0), or negative RINGBUF_* error code
+     *         Common errors: RINGBUF_EMPTY, RINGBUF_POP_SIZE_TOO_LARGE
+     */
+    ssize_t Pop(void *data, size_t size) { return Base::Pop(r_, data, size); }
+
+    /**
      * Pop_w_cb - Pop and process an element via a callback (zero-copy pop)
      *
      * Invokes @callback with a pointer directly into the ring buffer slot,

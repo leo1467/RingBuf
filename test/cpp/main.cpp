@@ -120,11 +120,11 @@ void func(Obj &o, int n)
     Obj j, k;
     char buf[2048] = {};
     for (int i = 0; i < n; ++i) {
-        r.Push(o);
-        r.Push(o);
+        x = r.Push(o);
+        x = r.Push(o);
 
-        r.Pop(j); 
-        r.Pop(*reinterpret_cast<Obj *>(buf));
+        x = r.Pop(j); 
+        x = r.Pop(buf, sizeof(Obj));
         x = s.Pop_w_cb(cb, &j); // fast
         x = s.Pop_w_cb(cbb); // none fast
         x = s.Pop_w_cb(cbbb, &j); // none fast
@@ -157,7 +157,7 @@ int main()
     func<RW::RingBuf<RW::RingBufType::Spsc, Obj, ObjNum>>(o, Loop);
     func<RW::RingBuf<RW::RingBufType::Mpsc, Obj, ObjNum>>(o, Loop);
     func<RW::RingBuf<RW::RingBufType::Mpmc, Obj, ObjNum>>(o, Loop);
-    func<RW::RingBuf<RW::RingBufType::Block, Obj, ObjNum>>(o, Loop);
+    // func<RW::RingBuf<RW::RingBufType::Block, Obj, ObjNum>>(o, Loop);
     // auto end = std::chrono::steady_clock::now();
     // std::cout << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << std::endl;
 
