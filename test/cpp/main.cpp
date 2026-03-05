@@ -29,8 +29,35 @@ constexpr auto ObjNum = 8;
 constexpr auto SHM = "/dev/shm/test";
 constexpr auto Loop = 100000;
 
+int cb(const void *p, void *args)
+{
+    // std::cout << *reinterpret_cast<Obj *>(p) << std::endl;
+    auto i = rand();
+    return i;
+}
 
-int cb1(void *p, void *args)
+int cbb(const void *p)
+{
+    // std::cout << *reinterpret_cast<Obj *>(p) << std::endl;
+    auto i = rand();
+    return i;
+}
+
+int cbbb(void *p, void *args)
+{
+    // std::cout << *reinterpret_cast<Obj *>(p) << std::endl;
+    auto i = rand();
+    return i;
+}
+
+int cbbbb(const void *p,  int *a, int *b)
+{
+    // std::cout << *reinterpret_cast<Obj *>(p) << std::endl;
+    auto i = rand();
+    return i;
+}
+
+int cbbbbb(int *p, int *a, int *b)
 {
     // std::cout << *reinterpret_cast<Obj *>(p) << std::endl;
     auto i = rand();
@@ -40,11 +67,48 @@ int cb1(void *p, void *args)
 template<typename T>
 void func(Obj &o, int n)
 {
-    auto cb = [&](void *p) noexcept -> int {
+    auto cb1 = [&](const void *p, void *args) noexcept -> int {
         // std::cout << *reinterpret_cast<Obj *>(p) << std::endl;
         auto i = rand();
         return i;
     };
+
+    auto cb2 = [](const void *p, void *args) noexcept -> int {
+        // std::cout << *reinterpret_cast<Obj *>(p) << std::endl;
+        auto i = rand();
+        return i;
+    };
+
+    auto cb3 = [&](const void *p) noexcept -> int {
+        // std::cout << *reinterpret_cast<Obj *>(p) << std::endl;
+        auto i = rand();
+        return i;
+    };
+
+    auto cb4 = [&](void *p) noexcept -> int {
+        // std::cout << *reinterpret_cast<Obj *>(p) << std::endl;
+        auto i = rand();
+        return i;
+    };
+
+    auto cb5 = [](void *p) noexcept -> int {
+        // std::cout << *reinterpret_cast<Obj *>(p) << std::endl;
+        auto i = rand();
+        return i;
+    };
+
+    auto cb6 = []() noexcept -> int {
+        // std::cout << *reinterpret_cast<Obj *>(p) << std::endl;
+        auto i = rand();
+        return i;
+    };
+
+    auto cb7 = [](int *p, void *args) noexcept -> int {
+        // std::cout << *reinterpret_cast<Obj *>(p) << std::endl;
+        auto i = rand();
+        return i;
+    };
+
     int x = 0;
     T r;
     int rc = r.Init(SHM, MAP_SHM | MAP_NEW, 0);
@@ -58,13 +122,19 @@ void func(Obj &o, int n)
         r.Push(o);
 
         r.Pop(j); 
-        // x = cb(nullptr);
-        // x = s.Pop_w_cb(cb1, nullptr);
-        // x = s.Pop_w_cb(cb);
-        // x = s.Pop_MpmcMpscRingBuf(j);
+        x = s.Pop_w_cb(cb, &j); // fast
+        x = s.Pop_w_cb(cbb); // none fast
+        x = s.Pop_w_cb(cbbb, &j); // none fast
+        x = s.Pop_w_cb(cbbbb, &i, &i); // none fast
+        x = s.Pop_w_cb(cbbbbb, &i, &i); // 第一個參數不是 void* 的 callback 不支援
 
-        // int y = x + rand();
-        // std::cout << y << std::endl;
+        x = s.Pop_w_cb(cb1, &j); // none fast
+        x = s.Pop_w_cb(cb2, &j); // fast
+        x = s.Pop_w_cb(cb3); // none fast
+        x = s.Pop_w_cb(cb4); //none fast
+        x = s.Pop_w_cb(cb5); // none fast
+        // x = s.Pop_w_cb(cb6); // 沒有參數的 callback 不支援
+        // x = s.Pop_w_cb(cb7, &j); // 第一個參數不是 void* 的 callback 不支援
     }
     unlink(SHM);
 }
