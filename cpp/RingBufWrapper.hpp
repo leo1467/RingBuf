@@ -475,6 +475,87 @@ public:
     }
 
     /**
+     * BeginPush - Acquire a slot in the ring buffer for zero-copy writing (Spsc only)
+     *
+     * Returns a pointer directly into the next available write slot so that the
+     * caller can construct or copy data in-place, avoiding an extra memcpy.
+     * Must be paired with a subsequent call to EndPush() to make the slot visible
+     * to the consumer.
+     *
+     * Only available when RingType == RingBufType::Spsc.
+     *
+     * @return pointer to the write slot, or nullptr if the ring buffer is full
+     *
+     * Example:
+     *   void *slot = r.BeginPush();
+     *   if (slot) {
+     *       new (slot) MyObj(args...);
+     *       r.EndPush();
+     *   }
+     */
+    template <typename R = RingType, typename = std::enable_if_t<std::is_same_v<R, RingBufType::Spsc>>>
+    void *BeginPush() noexcept
+    {
+        return Base::BeginPush(r_);
+    }
+
+    /**
+     * EndPush - Commit the slot acquired by BeginPush() (Spsc only)
+     *
+     * Advances the producer index so the slot written via BeginPush() becomes
+     * visible to the consumer.  Must be called exactly once after every successful
+     * BeginPush().  Behaviour is undefined if called without a preceding BeginPush().
+     *
+     * Only available when RingType == RingBufType::Spsc.
+     */
+    template <typename R = RingType, typename = std::enable_if_t<std::is_same_v<R, RingBufType::Spsc>>>
+    void EndPush() noexcept
+    {
+        Base::EndPush(r_);
+    }
+
+    /**
+     * BeginPop - Acquire the front slot for zero-copy reading (Spsc only)
+     *
+     * Returns a pointer directly into the oldest unconsumed slot so that the
+     * caller can read or move data out without an extra memcpy.
+     * Must be paired with a subsequent call to EndPop() to release the slot
+     * back to the producer.
+     *
+     * Only available when RingType == RingBufType::Spsc.
+     *
+     * @return pointer to the read slot, or nullptr if the ring buffer is empty
+     *
+     * Example:
+     *   void *slot = r.BeginPop();
+     *   if (slot) {
+     *       process(static_cast<MyObj *>(slot));
+     *       r.EndPop();
+     *   }
+     */
+    template <typename R = RingType, typename = std::enable_if_t<std::is_same_v<R, RingBufType::Spsc>>>
+    void *BeginPop() noexcept
+    {
+        return Base::BeginPop(r_);
+    }
+
+    /**
+     * EndPop - Release the slot acquired by BeginPop() (Spsc only)
+     *
+     * Advances the consumer index so the slot read via BeginPop() is returned
+     * to the producer for reuse.  Must be called exactly once after every
+     * successful BeginPop().  Behaviour is undefined if called without a
+     * preceding BeginPop().
+     *
+     * Only available when RingType == RingBufType::Spsc.
+     */
+    template <typename R = RingType, typename = std::enable_if_t<std::is_same_v<R, RingBufType::Spsc>>>
+    void EndPop() noexcept
+    {
+        Base::EndPop(r_);
+    }
+
+    /**
      * Get_RingBuf_strerror - Return a human-readable description of a RINGBUF_* error code
      *
      * @param err negative error code returned by Init(), Push(), Pop(), or Pop_w_cb()

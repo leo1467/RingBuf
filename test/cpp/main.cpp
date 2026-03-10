@@ -25,7 +25,7 @@ std::ostream &operator<<(std::ostream &cout, const A &tmp)
 
 namespace RW = RingBufWrapper;
 using Obj = A;
-constexpr auto ObjNum = 8;
+constexpr auto ObjNum = 1024;
 constexpr auto SHM = "/dev/shm/test";
 constexpr auto Loop = 100000;
 
@@ -122,6 +122,15 @@ void func(Obj &o, int n)
     for (int i = 0; i < n; ++i) {
         x = r.Push(o);
         x = r.Push(o);
+        x = r.Push(o);
+        x = r.Push(o);
+        x = r.Push(o);
+        x = r.Push(o);
+        x = r.Push(o);
+        x = r.Push(o);
+        x = r.Push(o);
+        x = r.Push(o);
+        x = r.Push(o);
 
         x = r.Pop(j); 
         x = r.Pop(buf, sizeof(Obj));
@@ -142,7 +151,7 @@ void func(Obj &o, int n)
     unlink(SHM);
 }
 
-template<typename T>
+template <typename T>
 void check_rc(T &r, int rc)
 {
     if (rc < 0) {
@@ -157,26 +166,41 @@ int main()
     func<RW::RingBuf<RW::RingBufType::Spsc, Obj, ObjNum>>(o, Loop);
     func<RW::RingBuf<RW::RingBufType::Mpsc, Obj, ObjNum>>(o, Loop);
     func<RW::RingBuf<RW::RingBufType::Mpmc, Obj, ObjNum>>(o, Loop);
-    // func<RW::RingBuf<RW::RingBufType::Block, Obj, ObjNum>>(o, Loop);
+    func<RW::RingBuf<RW::RingBufType::Block, Obj, ObjNum>>(o, Loop);
     // auto end = std::chrono::steady_clock::now();
     // std::cout << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << std::endl;
 
     int rc = 0;
     auto p = &o;
-    // RW::RingBuf<RW::RingBufType::Block, Obj, ObjNum> r;
-    // check_rc(r, r.Init(SHM, MAP_SHM | MAP_NEW, 0));
-    // r.Pop(*p);
-    // r.~RingBuf();
+    RW::RingBuf<RW::RingBufType::Block, Obj, ObjNum> r;
+    check_rc(r, r.Init(SHM, MAP_SHM | MAP_NEW, 0));
+    r.Push(&o, sizeof(o));
+    r.Push(o);
+    r.Pop(*p);
+    r.~RingBuf();
+
     RW::RingBuf<RW::RingBufType::Mpmc, Obj, ObjNum> r1;
     check_rc(r1, r1.Init(SHM, MAP_SHM | MAP_NEW, 0));
+    r1.Push(&o, sizeof(o));
+    r1.Push(o);
     r1.Pop(*p);
     r1.~RingBuf();
+
     RW::RingBuf<RW::RingBufType::Mpsc, Obj, ObjNum> r2;
     check_rc(r2, r2.Init(SHM, MAP_SHM | MAP_NEW, 0));
+    r2.Push(&o, sizeof(o));
+    r2.Push(o);
     r2.Pop(*p);
     r2.~RingBuf();
+
     RW::RingBuf<RW::RingBufType::Spsc, Obj, ObjNum> r3;
     check_rc(r3, r3.Init(SHM, MAP_SHM | MAP_NEW, 0));
+    r3.Push(&o, sizeof(o));
+    r3.Push(o);
+    auto x = r3.BeginPush();
+    r3.EndPush();
+    r3.BeginPop();
+    r3.EndPop();
     r3.Pop(*p);
     r3.~RingBuf();
     
