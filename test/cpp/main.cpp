@@ -203,8 +203,7 @@ int main()
     r3.EndPop();
     r3.Pop(*p);
     r3.~RingBuf();
-    
-    // int rc = r.Init(SHM, MAP_NEW | MAP_SHM, 0);
+
     // if (rc < 0) {
     //     std::cout << r.Get_RingBuf_strerror(errno) << std::endl;
     //     return rc;

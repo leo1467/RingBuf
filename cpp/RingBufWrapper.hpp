@@ -98,29 +98,28 @@ namespace RingBufWrapper
  */
 struct RingBufType
 {
-    struct Spsc
-    {
-    };
+    // clang-format off
+    struct Spsc {};
+    struct Mpsc {};
+    struct Mpmc {};
+    struct Block {};
 
-    struct Mpsc
-    {
-    };
-
-    struct Mpmc
-    {
-    };
-
-    struct Block
-    {
-    };
+    // clang-format on
 };
+
+namespace detail
+{
 
 /**
  * RingBufTypeTrait - Internal trait that maps a RingBufType tag to the
  *                    corresponding C API types and functions.
  *
- * Not intended for direct use. RingBuf<> inherits from the appropriate
- * specialisation to gain access to the C functions.
+ * @warning Not intended for direct use outside this header.
+ *          Use RingBuf<> instead. This type lives in the detail namespace
+ *          to discourage direct instantiation.
+ *
+ * RingBuf<> inherits privately from the appropriate specialisation to gain
+ * access to the C functions.
  *
  * Specialisations exist for:
  *   RingBufType::Spsc  -> SpscRingBuf_t
@@ -129,7 +128,10 @@ struct RingBufType
  *   RingBufType::Block -> BlockRingBuf_t
  */
 template <typename RingTypeTag>
-struct RingBufTypeTrait;
+struct RingBufTypeTrait
+{
+    RingBufTypeTrait() = delete;
+};
 
 template <>
 struct RingBufTypeTrait<RingBufType::Spsc>
@@ -211,6 +213,8 @@ struct RingBufTypeTrait<RingBufType::Block>
     static ssize_t Pop(type *r, void *out, size_t size) { return Pop_BlockRingBuf(r, out, size); }
 };
 
+}  // namespace detail
+
 /**
  * is_one_of_v<T, Options...> - True if T is the same type as any type in Options
  *
@@ -241,13 +245,13 @@ inline constexpr bool is_one_of_v = (std::is_same_v<T, Options> || ...);
  * Copyable / movable: yes (shared ownership of the underlying ring buffer)
  */
 template <typename RingType, typename Obj, size_t ObjNum>
-class RingBuf final : private RingBufTypeTrait<RingType>
+class RingBuf final : private detail::RingBufTypeTrait<RingType>
 {
     static_assert(is_one_of_v<RingType, RingBufType::Spsc, RingBufType::Mpsc, RingBufType::Mpmc, RingBufType::Block>,
                   "RingType wrong");
     static_assert((ObjNum >= 2) && ((ObjNum & (ObjNum - 1)) == 0), "ObjNum need to be power of 2");
 
-    using Base = RingBufTypeTrait<RingType>;
+    using Base = detail::RingBufTypeTrait<RingType>;
 
 public:
     /**
