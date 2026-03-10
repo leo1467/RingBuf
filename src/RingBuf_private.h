@@ -13,9 +13,10 @@
  */
 #define RINGBUF_SET_ERROR(err) do { errno = (err); return (err); } while(0)
 
-enum RingBufSlot {
+enum RingBufSlot
+{
     NA_SLOT = 0,
-    NO_SLOT  = 1 << 0,
+    NO_SLOT = 1 << 0,
     MPSC_SLOT = 1 << 1,
     MPMC_SLOT = 1 << 2,
 };
@@ -32,20 +33,23 @@ typedef struct _Slot
     atomic_size_t __attribute__((__aligned__((CACHE_LINE_SIZE)))) slot;
 } Slot_t;
 
-typedef struct _RingBuf {
+typedef struct _RingBuf
+{
     atomic_size_t head_ __attribute__((__aligned__(CACHE_LINE_SIZE)));
     atomic_size_t tail_ __attribute__((__aligned__(CACHE_LINE_SIZE)));
 
     // ---- buffer metadata ----
-    size_t objSize_ __attribute__((__aligned__(CACHE_LINE_SIZE)));
-    size_t objNum_;
-    size_t mask_;
-    size_t totalSize_;
-    int mapType_;
-    int fd;
-    size_t buffer_offset_;
-    size_t slot_offset_;
-    char pad[CACHE_LINE_SIZE - sizeof(size_t) * 4 - sizeof(int) * 2 - sizeof(size_t) * 2];
+    struct
+    {
+        size_t objSize_;
+        size_t objNum_;
+        size_t mask_;
+        size_t totalSize_;
+        int mapType_;
+        int fd;
+        size_t buffer_offset_;
+        size_t slot_offset_;
+    } __attribute__((__aligned__(CACHE_LINE_SIZE)));
 } __attribute__((__aligned__(CACHE_LINE_SIZE))) RingBuf_t;
 
 RingBuf_t *get_buf(const size_t objNum, const size_t objSize, const char *shmPath, int prot, int flag, int useSlot);
@@ -55,7 +59,8 @@ void del_buf(RingBuf_t *r);
 #define GET_BUFFER(r) ((char *)(r) + (r)->buffer_offset_)
 #define GET_SLOT(r, i) (((Slot_t *)((char *)(r) + (r)->slot_offset_))[(i)].slot)
 
-typedef struct _BRingBuf {
+typedef struct _BRingBuf
+{
     size_t head_ __attribute__((__aligned__(CACHE_LINE_SIZE)));
     size_t tail_ __attribute__((__aligned__(CACHE_LINE_SIZE)));
     pthread_mutex_t mtx __attribute__((__aligned__(CACHE_LINE_SIZE)));
@@ -63,13 +68,15 @@ typedef struct _BRingBuf {
     pthread_cond_t readable __attribute__((__aligned__(CACHE_LINE_SIZE)));
 
     // ---- buffer metadata ----
-    size_t objSize_ __attribute__((__aligned__(CACHE_LINE_SIZE)));
-    size_t objNum_;
-    size_t mask_;
-    size_t totalSize_;
-    int mapType_;
-    int fd;
-    char pad[CACHE_LINE_SIZE - sizeof(size_t) * 4 - sizeof(int) * 2];
+    struct
+    {
+        size_t objSize_;
+        size_t objNum_;
+        size_t mask_;
+        size_t totalSize_;
+        int mapType_;
+        int fd;
+    } __attribute__((__aligned__(CACHE_LINE_SIZE)));
 
     char buffer[];
 } __attribute__((__aligned__(CACHE_LINE_SIZE))) BRingBuf_t;
